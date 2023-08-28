@@ -22,14 +22,20 @@
     "@oclif/core": "^2",
     "@oclif/plugin-help": "^5",
     "@oclif/plugin-plugins": "^3.3.0",
+    "axios": "^1.5.0",
     "picocolors": "^1.0.0",
-    "shelljs": "^0.8.5"
+    "shelljs": "^0.8.5",
+    "tough-cookie": "^4.1.3"
   },
   "devDependencies": {
+    "@commitlint/cli": "^17.7.1",
+    "@commitlint/config-conventional": "^17.7.0",
     "@oclif/test": "^2.4.7",
     "@types/chai": "^4",
     "@types/mocha": "^9.0.0",
     "@types/node": "^16.18.46",
+    "@types/shelljs": "^0.8.12",
+    "@typescript-eslint/eslint-plugin": "^6.4.1",
     "chai": "^4",
     "eslint": "^7.32.0",
     "eslint-config-oclif": "^4",
@@ -63,11 +69,17 @@
   "scripts": {
     "build": "shx rm -rf dist && tsc -b",
     "lint": "eslint . --ext .ts --config .eslintrc",
+    "lint-staged": "lint-staged",
+    "lint:fix": "next lint --fix",
+    "lint:types": "tsc --pretty --noEmit --fix",
+    "check-format": "prettier --check .",
+    "format": "prettier --write .",
     "postpack": "shx rm -f oclif.manifest.json",
     "posttest": "npm run lint",
     "prepack": "npm run build && oclif manifest && oclif readme",
     "test": "mocha --forbid-only \"test/**/*.test.ts\"",
-    "version": "oclif readme && git add README.md"
+    "version": "oclif readme && git add README.md",
+    "prepare": "husky install"
   },
   "engines": {
     "node": ">=12.0.0"
@@ -76,5 +88,11 @@
   "keywords": [
     "oclif"
   ],
-  "types": "dist/index.d.ts"
+  "types": "dist/index.d.ts",
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  }
 }
