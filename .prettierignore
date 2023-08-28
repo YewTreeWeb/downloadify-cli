@@ -1,0 +1,7 @@
+dist/*
+bin/*
+.vscode/*
+.github/*
+node_modules
+package-lock.json
+package.json
