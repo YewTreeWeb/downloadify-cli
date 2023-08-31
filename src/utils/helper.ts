@@ -52,6 +52,8 @@ export const loginAndGetCookies = async (
   // Perform login
   try {
     const response = await axios.post(loginUrl, { username, password })
+    console.log(response)
+
     const expandedPath = path.join(os.homedir(), dir)
     if (response.status === 200) {
       // Get cookies from the response
@@ -71,18 +73,39 @@ export const loginAndGetCookies = async (
       console.error('Login failed:', response.status)
     }
   } catch (error) {
-    console.error('Error:', error.message)
+    console.error('Error:', error)
   }
 }
 
 // youtude-dl downloader
-export const ytdl = async (cookieFile: string, url: string, subs: boolean) => {
-  const yt = `youtube-dl --cookies ${cookieFile} ${url} --referer ${url}${
-    subs ? ' --all-subs' : ''
-  } --format "best[format_id*=en]" -o "%(series)s/%(season)s/%(title)s.%(ext)s" --user-agent "Mozilla/5.0"`
-  shelljs.exec(yt, (code, stdout, stderr) => {
-    console.log('Exit code:', code)
-    console.log('Program output:', stdout)
-    console.log('Program stderr:', stderr)
-  })
+export const ytdl = (
+  location: string,
+  season: {
+    num: string | number
+    all: boolean
+  },
+  episode: string | number,
+  cookieFile: string,
+  url: string,
+  subs: boolean,
+) => {
+  const series = Number(season.num)
+  const seriesNum = series < 10 ? `s0${series}` : `s${series}`
+  const eps = Number(episode)
+  const yt = (s: string, e: string) => {
+    const formattedUrl = `${url}${s}${e}`
+    return `youtube-dl --cookies ${cookieFile} ${formattedUrl} --referer ${formattedUrl}${
+      subs ? ' --all-subs' : ''
+    } --format "best[format_id*=en]" -o "${location}/%(series)s/%(season)s/%(title)s.%(ext)s" --user-agent "Mozilla/5.0"`
+  }
+
+  if (season.all) {
+    for (let i = 1; i < Number(episode); i++) {
+      const ep = i < 10 ? `e00${i}` : i < 100 ? `e0${i}` : `e${i}`
+      shelljs.exec(yt(seriesNum, ep))
+    }
+  } else {
+    const ep = eps < 10 ? `e00${eps}` : eps < 100 ? `e0${eps}` : `e${eps}`
+    shelljs.exec(yt(seriesNum, ep))
+  }
 }

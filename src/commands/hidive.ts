@@ -1,3 +1,5 @@
+import * as os from 'node:os'
+import * as path from 'node:path'
 import { Args, Command, Flags } from '@oclif/core'
 import * as p from '@clack/prompts'
 import color from 'picocolors'
@@ -31,11 +33,7 @@ export default class Hidive extends Command {
 
   public async run(): Promise<void> {
     const { args, flags } = await this.parse(Hidive)
-    const s = p.spinner()
-    let episode = 'e00'
-    let seasonNum = 's00'
-    console.log(flags)
-
+    const sp = p.spinner()
     p.intro(`${color.bgCyan(color.black(' HiDive '))}`)
     // Ask where to download video
     const dirName = await p.text({
@@ -59,6 +57,7 @@ export default class Hidive extends Command {
       )
       console.log(`\nNow creating ${String(dirName)}\n`)
       shelljs.mkdir(`~/Movies/${String(dirName)}`)
+      shelljs.mkdir(`~/Movies/${String(dirName)}/cookies`)
       dirCreated = !dirCreated
     }
 
@@ -71,90 +70,130 @@ export default class Hidive extends Command {
       )
     }
 
+    // Set download directory
+    const dwnDir = path.join(os.homedir(), `Movies/${String(dirName)}`)
+
     // Check if cookies files exists
-    const date = new Date()
-    const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1)
-      .toString()
-      .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
-    const cookieFile = `Movies/${String(dirName)}/cookies-${formattedDate}.txt`
-    let hasCookies = await checkCookiesExists(cookieFile)
+    // const date = new Date()
+    // const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1)
+    //   .toString()
+    //   .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
+    const cookieFile = `Movies/${String(dirName)}/cookies/cookies.txt`
+    // const cookieFile = `Movies/${String(
+    //   dirName,
+    // )}/cookies/cookies-${formattedDate}.txt`
+    const formattedCookieFile = path.join(
+      os.homedir(),
+      `Movies/${String(dirName)}/cookies/cookies.txt`,
+    )
+    const hasCookies = await checkCookiesExists(cookieFile)
 
-    // Todo: check if a cookie file exists but isn't the same date
+    // if (!hasCookies) {
+    //   console.log(
+    //     `${color.bgRed(
+    //       color.white(` Cookie file does not exist in ${String(dirName)} \n`),
+    //     )}`,
+    //   )
+    //   const directory = path.dirname(cookieFile)
+    //   const filesInDirectory = await fs.promises.readdir(directory)
 
-    if (!hasCookies) {
-      console.log(
-        `${color.bgRed(
-          color.white(` Cookie file does not exist in ${String(dirName)} \n`),
-        )}`,
-      )
+    //   const otherCookieFiles = filesInDirectory.filter(
+    //     (fileName) =>
+    //       fileName !== path.basename(String(dirName)) &&
+    //       fileName.includes('cookies'),
+    //   )
 
-      // Ask for login details to HiDive
-      const usrName = await p.text({
-        message: 'HiDive username',
-        initialValue: 'HiDive',
-        validate: (value) => {
-          const regex = /^[A-Za-z-]+$/
-          if (!value) return 'Please enter a username.'
-          if (!regex.test(value)) return 'Username letters and dashes'
-        },
-      })
-      const passWrd = await p.password({
-        message: 'HiDive password',
-        validate: (value) => {
-          if (!value) return 'Please enter a password.'
-          if (value.length < 5)
-            return 'Password should have at least 5 characters.'
-        },
-      })
-      s.start('Creating cookie file...')
-      loginAndGetCookies(
-        'https://www.hidive.com/',
-        String(usrName),
-        String(passWrd),
-        String(dirName),
-        formattedDate,
-      )
-      hasCookies = await checkCookiesExists(cookieFile)
-      s.stop('Cookie file created')
-    }
+    //   console.log('others', otherCookieFiles)
+
+    //   if (otherCookieFiles.length > 0) shelljs.rm('-rf', otherCookieFiles)
+    //   //   // Ask for login details to HiDive
+    //     const usrName = await p.text({
+    //       message: 'HiDive username',
+    //       placeholder: 'test@email.com',
+    //       validate: (value) => {
+    //         const regex =
+    //           /^[\w!#$%&'*+./=?^`{|}~-]+@[\dA-Za-z-]+(?:\.[\dA-Za-z-]+)*$/
+    //         if (!value) return 'Please enter a username.'
+    //         if (!regex.test(value))
+    //           return 'Username must be a valid email address'
+    //       },
+    //     })
+    //     const passWrd = await p.password({
+    //       message: 'HiDive password',
+    //       validate: (value) => {
+    //         if (!value) return 'Please enter a password.'
+    //         if (value.length < 5)
+    //           return 'Password should have at least 5 characters.'
+    //       },
+    //     })
+    //     s.start('Creating cookie file...')
+    //     loginAndGetCookies(
+    //       'https://www.hidive.com/',
+    //       String(usrName).toLowerCase(),
+    //       String(passWrd),
+    //       String(dirName),
+    //       formattedDate,
+    //     )
+    //     hasCookies = await checkCookiesExists(cookieFile)
+    //     s.stop('Cookie file created')
+    // }
 
     // Ask which season to download
-    if (flags.season) {
-      const sNum = await p.text({
-        message: 'What season number would you like to download?',
-        validate: (value) => {
-          const regex = /^[1-9]\d*$/
-          if (!regex.test(value))
-            return 'Season number must be a positive number'
-        },
-      })
-      seasonNum = Number(sNum) < 10 ? `s0${Number(sNum)}` : `s${Number(sNum)}`
+    const sNum = (await p.text({
+      message: 'What season number would you like to download?',
+      initialValue: '1',
+      validate: (value) => {
+        const regex = /^[1-9]\d*$/
+        if (!regex.test(value)) return 'Season number must be a positive number'
+      },
+    })) as string | number
 
-      // Ask how many episodes are in season
-      const eNum = await p.text({
-        message: 'Enter the number of episodes there are in the season',
-        validate: (value) => {
-          const regex = /^[1-9]\d*$/
-          if (!regex.test(value))
-            return 'Episode number must be a positive number'
-        },
-      })
+    // Ask how many episodes are in season
+    const epNum = (await p.text({
+      message: flags.season
+        ? 'Enter the number of episodes there are in the season'
+        : 'Enter the episode number you want to download',
+      validate: (value) => {
+        const regex = /^[1-9]\d*$/
+        if (!regex.test(value))
+          return 'Episode number must be a positive number'
+      },
+    })) as string | number
 
-      // Check if cookie file exists
-      if (hasCookies) {
-        // Loop over set number to run youtube-dl command the specified number of times
-        for (let i = 1; i < Number(eNum); i++) {
-          episode = i < 10 ? `e00${i}` : i < 100 ? `e0${i}` : `e${i}`
-          const formattedUrl = `${args.url}/${seasonNum}${episode}`
-          ytdl(cookieFile, formattedUrl, true)
-        }
-      } else {
-        throw new Error(
-          `Unable to download. Please add a valid and up-to-date cookies file to the ${String(
-            dirName,
-          )} directory.`,
+    const splitUrl = args.url.split('stream/')
+    const splitLast = splitUrl[1].split('/')
+    const name = splitLast[0]
+
+    if (hasCookies) {
+      const season = {
+        num: sNum,
+        all: flags.season,
+      }
+      sp.start(`Downloading ${name}...`)
+      try {
+        await ytdl(dwnDir, season, epNum, formattedCookieFile, args.url, true)
+        sp.stop('HiDive download complete')
+      } catch (error) {
+        console.error(error)
+        p.outro(
+          `Unable to download show - ${color.bgRed(
+            color.underline(color.white(name)),
+          )}`,
         )
       }
+    } else {
+      p.log.step(
+        `Unable to download. Please add a valid and up-to-date cookies file to the ${String(
+          dirName,
+        )} directory.`,
+      )
+      process.exit(1)
     }
+
+    p.outro(
+      `All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
+        color.cyan(name),
+      )}`,
+    )
   }
 }
