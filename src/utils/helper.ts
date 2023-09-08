@@ -2,7 +2,8 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import shelljs from 'shelljs'
-import * as p from '@clack/prompts'
+import puppeteer from 'puppeteer'
+import dayjs from 'dayjs'
 
 // Check to see if the directory exists
 export const checkDirExists = async (dir: string): Promise<boolean> => {
@@ -54,40 +55,73 @@ export const deleteOldCookies = async (cookieDir: string, dirName: string) => {
   if (otherCookieFiles.length > 0) shelljs.rm('-rf', existingCookies)
 }
 
-// Check for Cookie file
-export const checkForCookie = (
-  cookieFileNoDate: string,
-  formattedCookieFile: string,
-) => {
-  const sp = p.spinner()
-  let found = false
-  let cookieCheckCount = 1
-  sp.start('Waiting for cookie file')
-  if (fs.existsSync(cookieFileNoDate) || fs.existsSync(formattedCookieFile)) {
-    if (fs.existsSync(cookieFileNoDate)) {
-      // shelljs.mv(cookieFileNoDate, formattedCookieFile)
-      fs.rename(cookieFileNoDate, formattedCookieFile, (err) => {
-        if (err) {
-          if (process.env.NODE_ENV === 'development') console.error(err)
-          sp.stop('Cookie file not found')
-        } else {
-          sp.stop('Cookie file found')
-          found = true
-        }
-      })
-    } else {
-      sp.stop('Cookie file found')
-      found = true
-    }
-  } else if (!fs.existsSync(formattedCookieFile) && cookieCheckCount === 15) {
-    sp.stop('Cookie file not found')
-  } else {
-    cookieCheckCount += 1
-    if (cookieCheckCount >= 4 && cookieCheckCount < 15)
-      sp.message('Still waiting for cookie file...')
-    setTimeout(checkForCookie, 5000)
+// Fetch cookie
+type FetchCookieProps = {
+  url: string
+  user: {
+    name: string
+    el: string
   }
-  return found
+  pass: {
+    word: string
+    el: string
+  }
+  cookieDir: string
+  button: string
+  selector: string
+}
+export const fetchCookie = async ({
+  url,
+  user,
+  pass,
+  cookieDir,
+  button,
+  selector,
+}: FetchCookieProps) => {
+  const date = new Date()
+  const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1)
+    .toString()
+    .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
+  const browser = await puppeteer.launch({ headless: 'new' })
+  const page = await browser.newPage()
+  const navigationPromise = page.waitForNavigation({
+    waitUntil: 'domcontentloaded',
+  })
+  await page.setDefaultNavigationTimeout(120000)
+  // Navigate to the login page
+  await page.goto(url, { waitUntil: 'load', timeout: 60000 }) // Replace with the login page URL
+  await page.setUserAgent(
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36',
+  )
+  // Fill in the login form fields (replace with actual field selectors and credentials)
+  await page.type(user.el, user.name)
+  await page.type(pass.el, pass.word)
+  // Submit the login form
+  await page.click(button) // Replace with the login button selector
+  // Wait for site navigation to load
+  await navigationPromise
+  // Wait for a selector on the logged-in page to ensure successful login
+  await page.waitForSelector(selector, { timeout: 60000 }) // Replace with a selector on the logged-in page
+  // Get the cookies from the page
+  const cookies = await page.cookies()
+  // Convert the cookies to a Netscape-style cookie file format
+  let cookieString = ''
+  for (const cookie of cookies) {
+    cookieString += `${cookie.domain}\t${cookie.httpOnly ? 'TRUE' : 'FALSE'}\t${
+      cookie.path
+    }\t${cookie.secure ? 'TRUE' : 'FALSE'}\t${dayjs(
+      cookie.expires * 1000,
+    ).unix()}\t${cookie.name}\t${cookie.value}\n`
+  }
+  // Specify the path where you want to save the cookie file
+  const cookieFilePath = `${cookieDir}/cookies-${formattedDate}.txt`
+  // Write the cookies to the file in Netscape format
+  fs.writeFileSync(
+    cookieFilePath,
+    '# Netscape HTTP Cookie File\n' + cookieString,
+    'utf-8',
+  )
+  await browser.close()
 }
 
 // youtude-dl downloader
@@ -102,6 +136,7 @@ type YtdlOptions = {
   url: string
   subs: boolean
   filter?: string[]
+  onError: (error: boolean) => void
 }
 export const ytdl = ({
   location,
@@ -111,6 +146,7 @@ export const ytdl = ({
   url,
   subs,
   filter,
+  onError,
   ...rest
 }: YtdlOptions) => {
   const series = Number(season.num)
@@ -135,6 +171,9 @@ export const ytdl = ({
     }
   } else {
     const ep = eps < 10 ? `e00${eps}` : eps < 100 ? `e0${eps}` : `e${eps}`
-    shelljs.exec(yt(seriesNum, ep))
+    shelljs.exec(yt(seriesNum, ep), (code) => {
+      if (process.env.NODE_ENV === 'development') console.error(code)
+      onError(true)
+    })
   }
 }

@@ -22,7 +22,9 @@
     "@oclif/core": "^2",
     "@oclif/plugin-help": "^5",
     "@oclif/plugin-plugins": "^3.4.0",
+    "dayjs": "^1.11.9",
     "picocolors": "^1.0.0",
+    "puppeteer": "^21.1.1",
     "shelljs": "^0.8.5"
   },
   "devDependencies": {
