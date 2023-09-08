@@ -1,6 +1,6 @@
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { Args, Command, Flags } from '@oclif/core'
+import { Args, Command } from '@oclif/core'
 import * as p from '@clack/prompts'
 import color from 'picocolors'
 import {
@@ -14,23 +14,12 @@ import {
 import shelljs from 'shelljs'
 import { setTimeout } from 'node:timers/promises'
 
-export default class Hidive extends Command {
+export default class Other extends Command {
   static description = 'describe the command here'
 
   static examples = ['<%= config.bin %> <%= command.id %>']
 
-  static flags = {
-    season: Flags.boolean({
-      char: 's',
-      description: 'Would you like to download the entire season',
-      required: false,
-    }),
-    filter: Flags.string({
-      char: 'f',
-      description: 'Download a range of episodes e.g. 1-5',
-      required: false,
-    }),
-  }
+  static flags = {}
 
   static args = {
     url: Args.string({
@@ -40,22 +29,22 @@ export default class Hidive extends Command {
   }
 
   public async run(): Promise<void> {
-    const { args, flags } = await this.parse(Hidive)
-    const baseUrl = 'https://www.hidive.com/'
+    const { args } = await this.parse(Other)
     const sp = p.spinner()
     const date = new Date()
     const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1)
       .toString()
       .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
+    const formattedUrl = getPrimaryDomain(args.url)
 
     console.clear()
-    p.intro(`${color.bgCyan(color.black(' HiDive '))}`)
-    const hidiveDwnLd = await p.group(
+    p.intro(`${color.bgWhite(color.black(' Other '))}`)
+    const otherDwnLd = await p.group(
       {
         dir: () =>
           p.text({
             message: 'What directory would you like to use for your downloads?',
-            initialValue: 'HiDive',
+            placeholder: 'Videos',
             validate: (value) => {
               const regex = /^[A-Za-z-]+$/
               if (!value) return 'Please enter a directory'
@@ -104,7 +93,7 @@ export default class Hidive extends Command {
         },
         cookie: () =>
           p.select({
-            message: 'Have you already downloaded a HiDive cookie file?',
+            message: 'Have you already downloaded a cookie file?',
             initialValue: 'true',
             maxItems: 2,
             options: [
@@ -115,7 +104,7 @@ export default class Hidive extends Command {
         username: async ({ results }) => {
           if (results.cookie === 'true') return
           return p.text({
-            message: 'Please enter your username for HiDive?',
+            message: `Please enter your username for ${formattedUrl}?`,
             placeholder: 'User',
             validate: (value) => {
               if (!value) return 'Please enter a username'
@@ -125,7 +114,7 @@ export default class Hidive extends Command {
         password: async ({ results }) => {
           if (results.cookie === 'true') return
           return p.password({
-            message: 'Please enter your password for HiDive?',
+            message: `Please enter your password for ${formattedUrl}?`,
             validate: (value) => {
               const regex =
                 /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{10,}$/
@@ -137,6 +126,18 @@ export default class Hidive extends Command {
             },
           })
         },
+        login: async ({ results }) => {
+          if (results.cookie === 'true') return
+          return p.text({
+            message: `Please enter the login URL for ${formattedUrl}?`,
+            placeholder: 'https://test.com/login',
+            validate: (value) => {
+              if (!value) return 'Please enter a login url'
+              if (Boolean(new URL(value)) === false)
+                return 'Please enter a valid URL'
+            },
+          })
+        },
         hasCookie: async ({ results }) => {
           let cookie = false
           const cookieDir = path.join(
@@ -145,9 +146,8 @@ export default class Hidive extends Command {
           )
           const downloadedCookie = path.join(
             os.homedir(),
-            `Downloads/www.hidive.com_cookies.txt`,
+            `Downloads/${formattedUrl}_cookies.txt`,
           )
-          const formattedUrl = getPrimaryDomain(args.url)
           const formattedCookieFile = `${cookieDir}/cookies-${formattedDate}.txt`
           // Remove outdated cookies
           deleteOldCookies(cookieDir, String(results.dir))
@@ -156,7 +156,7 @@ export default class Hidive extends Command {
           // if yes move cookie and rename
           if (results.cookie === 'false') {
             const cookieOps = {
-              url: `${formattedUrl}/account/login`,
+              url: String(results.login),
               user: {
                 name: String(results.username),
                 el: '#Email',
@@ -220,11 +220,9 @@ export default class Hidive extends Command {
           })
         },
         episodeNum: ({ results }) => {
-          if (!results.hasCookie || flags.filter) return
+          if (!results.hasCookie) return
           return p.text({
-            message: flags.season
-              ? 'Enter the number of episodes there are in the season'
-              : 'Enter the episode number you want to download',
+            message: 'Enter the episode number you want to download',
             validate: (value) => {
               const regex = /^[1-9]\d*$/
               if (!regex.test(value))
@@ -265,121 +263,5 @@ export default class Hidive extends Command {
         },
       },
     )
-    // If confirm is false
-    if (!hidiveDwnLd.confirm) {
-      p.outro(
-        `${color.bgCyan(
-          color.black('  Download aborted! Thank you for using Downloadify.  '),
-        )}`,
-      )
-      process.exit(1)
-    }
-    // Ask where to download video
-    const dirName = hidiveDwnLd.dir
-    // Set download directory
-    const dwnDir = path.join(os.homedir(), `Movies/${String(dirName)}`)
-
-    // If no cookie file end the cli
-    // Else run youtube-dl
-    if (!hidiveDwnLd.cookie) {
-      p.outro(
-        `${color.bgCyan(
-          color.black(
-            `  Unable to download. Please add a valid and up-to-date cookies file to the ${String(
-              dirName,
-            )} directory.  `,
-          ),
-        )}`,
-      )
-      process.exit(1)
-    } else {
-      // Split the URL to get the name of the download
-      const splitUrl = args.url.split('stream/')
-      const splitLast = splitUrl[1].split('/')
-      const name = splitLast[0]
-
-      // Download from HiDive
-      const filter = flags.filter?.includes('-')
-        ? flags.filter.split('-')
-        : null
-
-      if (!filter && flags.filter) {
-        p.log.step('Filter must contain -')
-        const proceed = await p.confirm({
-          message: 'Would you like to continue without a filter?',
-          initialValue: true,
-        })
-        if (!proceed) {
-          p.outro(
-            `${color.bgCyan(
-              color.black(
-                '  Download aborted! Thank you for using Downloadify.  ',
-              ),
-            )}`,
-          )
-          process.exit(1)
-        }
-      }
-
-      let hasFailed = false
-
-      const url = !args.url.includes(baseUrl)
-        ? `${baseUrl}${args.url}`
-        : args.url
-
-      const opts = {
-        location: dwnDir,
-        season: {
-          num: Number(hidiveDwnLd.seasonNum) ?? 1,
-          all: flags.season,
-        },
-        episode: Number(hidiveDwnLd.episodeNum) ?? 1,
-        cookieFile: path.join(
-          os.homedir(),
-          `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
-        ),
-        url,
-        subs: true,
-        ...(filter && {
-          filter,
-        }),
-        onError: (error: boolean) => (hasFailed = error),
-      }
-      try {
-        ytdl(opts)
-        if (hasFailed) {
-          p.outro(
-            `${color.bgRed(
-              color.black(
-                `  An error occured. Unable to download - ${color.underline(
-                  color.white(name),
-                )}  `,
-              ),
-            )}`,
-          )
-        } else {
-          p.outro(
-            `${color.bgCyan(
-              color.black(
-                `  All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
-                  color.black(name),
-                )}  `,
-              ),
-            )}`,
-          )
-        }
-      } catch (error) {
-        p.outro(
-          `${color.bgRed(
-            color.black(
-              `  An error occured. Unable to download - ${color.underline(
-                color.white(name),
-              )}  `,
-            ),
-          )}`,
-        )
-        if (process.env.NODE_ENV === 'development') console.error(error)
-      }
-    }
   }
 }

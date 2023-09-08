@@ -5,6 +5,18 @@ import shelljs from 'shelljs'
 import puppeteer from 'puppeteer'
 import dayjs from 'dayjs'
 
+// Always get the primary domain from a URL
+export const getPrimaryDomain = (url: string) => {
+  // Remove the protocol (http://, https://) if present
+  url = url.replace(/(^\w+:|^)\/\//, '')
+  // Split the URL by '/' to get the parts
+  const parts = url.split('/')
+  // The primary domain is the first part of the split URL
+  const primaryDomain = parts[0]
+  // Reconstruct the URL with the protocol and primary domain
+  return `https://${primaryDomain}`
+}
+
 // Check to see if the directory exists
 export const checkDirExists = async (dir: string): Promise<boolean> => {
   const expandedPath = path.join(os.homedir(), dir)
@@ -152,9 +164,12 @@ export const ytdl = ({
   const series = Number(season.num)
   const seriesNum = series < 10 ? `s0${series}` : `s${series}`
   const eps = Number(episode)
+  let failed = false
   const yt = (s: string, e: string) => {
     const formattedUrl = `${url}${s}${e}`
-    return `youtube-dl --cookies ${cookieFile} ${formattedUrl} --referer ${formattedUrl}${
+    return `${
+      failed ? 'yt-dlp' : 'youtube-dl'
+    } --cookies ${cookieFile} ${formattedUrl} --referer ${formattedUrl}${
       subs ? ' --all-subs' : ''
     } --format "best[format_id*=en]" -o "${location}/%(series)s/%(season)s/%(title)s.%(ext)s" --user-agent "Mozilla/5.0" ${rest}`
   }
@@ -162,18 +177,30 @@ export const ytdl = ({
   if (season.all) {
     for (let i = 1; i < Number(episode); i++) {
       const ep = i < 10 ? `e00${i}` : i < 100 ? `e0${i}` : `e${i}`
-      shelljs.exec(yt(seriesNum, ep))
+      shelljs.exec(yt(seriesNum, ep), (err) => {
+        if (process.env.NODE_ENV === 'development') console.error(err)
+        onError(true)
+        failed = true
+        yt(seriesNum, ep)
+      })
     }
   } else if (filter) {
     for (let i = Number(filter[0]); i < Number(filter[1]); i++) {
       const ep = i < 10 ? `e00${i}` : i < 100 ? `e0${i}` : `e${i}`
-      shelljs.exec(yt(seriesNum, ep))
+      shelljs.exec(yt(seriesNum, ep), (err) => {
+        if (process.env.NODE_ENV === 'development') console.error(err)
+        onError(true)
+        failed = true
+        yt(seriesNum, ep)
+      })
     }
   } else {
     const ep = eps < 10 ? `e00${eps}` : eps < 100 ? `e0${eps}` : `e${eps}`
-    shelljs.exec(yt(seriesNum, ep), (code) => {
-      if (process.env.NODE_ENV === 'development') console.error(code)
+    shelljs.exec(yt(seriesNum, ep), (err) => {
+      if (process.env.NODE_ENV === 'development') console.error(err)
       onError(true)
+      failed = true
+      yt(seriesNum, ep)
     })
   }
 }
