@@ -39,7 +39,7 @@ export default class Other extends Command {
 
     console.clear()
     p.intro(`${color.bgWhite(color.black(' Other '))}`)
-    const otherDwnLd = await p.group(
+    const otherOpts = await p.group(
       {
         dir: () =>
           p.text({
@@ -258,10 +258,79 @@ export default class Other extends Command {
       },
       {
         onCancel: () => {
-          p.cancel(color.bgCyan(color.black('  Download cancelled  ')))
+          p.cancel(color.bgWhite(color.black('  Download cancelled  ')))
           process.exit(0)
         },
       },
     )
+    // If confirm is false
+    if (!otherOpts.confirm) {
+      p.outro(
+        `${color.bgWhite(
+          color.black('  Download aborted! Thank you for using Downloadify.  '),
+        )}`,
+      )
+      process.exit(1)
+    }
+
+    // Ask where to download video
+    const dirName = otherOpts.dir
+    // Set download directory
+    const dwnDir = path.join(os.homedir(), `Movies/${String(dirName)}`)
+
+    // If no cookie file end the cli
+    // Else run youtube-dl
+    if (!otherOpts.cookie) {
+      p.outro(
+        `${color.bgWhite(
+          color.black(
+            `  Unable to download. Please add a valid and up-to-date cookies file to the ${String(
+              dirName,
+            )} directory.  `,
+          ),
+        )}`,
+      )
+      process.exit(1)
+    } else {
+      // Split the URL to get the name of the download
+      const splitUrl = args.url.split('stream/')
+      const splitLast = splitUrl[1].split('/')
+      const name = splitLast[0]
+
+      const opts = {
+        location: dwnDir,
+        season: Number(otherOpts.seasonNum) ?? 1,
+        episode: Number(otherOpts.episodeNum) ?? 1,
+        cookieFile: path.join(
+          os.homedir(),
+          `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
+        ),
+        url: args.url,
+        subs: true,
+      }
+      try {
+        ytdl(opts)
+        p.outro(
+          `${color.bgWhite(
+            color.black(
+              `  All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
+                color.black(name),
+              )}  `,
+            ),
+          )}`,
+        )
+      } catch (error) {
+        p.outro(
+          `${color.bgRed(
+            color.black(
+              `  An error occured. Unable to download - ${color.underline(
+                color.white(name),
+              )}  `,
+            ),
+          )}`,
+        )
+        if (process.env.NODE_ENV === 'development') console.error(error)
+      }
+    }
   }
 }

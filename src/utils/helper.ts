@@ -139,9 +139,36 @@ export const fetchCookie = async ({
 // youtude-dl downloader
 type YtdlOptions = {
   location: string
+  season: string | number
+  episode: string | number
+  cookieFile: string
+  url: string
+  subs?: boolean
+  failed?: boolean
+}
+export const ytdl = ({
+  location,
+  season,
+  episode,
+  cookieFile,
+  url,
+  subs,
+  failed,
+  ...rest
+}: YtdlOptions) => {
+  const formattedUrl = `${url}${season}${episode}`
+  return `${
+    failed ? 'yt-dlp' : 'youtube-dl'
+  } --cookies ${cookieFile} ${formattedUrl} --referer ${formattedUrl}${
+    subs ? ' --all-subs' : ''
+  } --format "best[format_id*=en]" -o "${location}/%(series)s/%(season)s/%(title)s.%(ext)s" --user-agent "Mozilla/5.0" ${rest}`
+}
+
+type hidiveDlOptions = {
+  location: string
   season: {
     num: string | number
-    all: boolean
+    all?: boolean
   }
   episode: string | number
   cookieFile: string
@@ -150,7 +177,7 @@ type YtdlOptions = {
   filter?: string[]
   onError: (error: boolean) => void
 }
-export const ytdl = ({
+export const hidiveDl = ({
   location,
   season,
   episode,
@@ -160,47 +187,53 @@ export const ytdl = ({
   filter,
   onError,
   ...rest
-}: YtdlOptions) => {
+}: hidiveDlOptions) => {
   const series = Number(season.num)
   const seriesNum = series < 10 ? `s0${series}` : `s${series}`
   const eps = Number(episode)
-  let failed = false
-  const yt = (s: string, e: string) => {
-    const formattedUrl = `${url}${s}${e}`
-    return `${
-      failed ? 'yt-dlp' : 'youtube-dl'
-    } --cookies ${cookieFile} ${formattedUrl} --referer ${formattedUrl}${
-      subs ? ' --all-subs' : ''
-    } --format "best[format_id*=en]" -o "${location}/%(series)s/%(season)s/%(title)s.%(ext)s" --user-agent "Mozilla/5.0" ${rest}`
+  const opts: YtdlOptions = {
+    location,
+    season: seriesNum,
+    episode: eps,
+    cookieFile,
+    url,
+    subs,
+    failed: false,
+    ...(rest && {
+      rest,
+    }),
   }
 
   if (season.all) {
     for (let i = 1; i < Number(episode); i++) {
       const ep = i < 10 ? `e00${i}` : i < 100 ? `e0${i}` : `e${i}`
-      shelljs.exec(yt(seriesNum, ep), (err) => {
+      opts.episode = ep
+      shelljs.exec(ytdl(opts), (err) => {
         if (process.env.NODE_ENV === 'development') console.error(err)
         onError(true)
-        failed = true
-        yt(seriesNum, ep)
+        opts.failed = true
+        ytdl(opts)
       })
     }
   } else if (filter) {
     for (let i = Number(filter[0]); i < Number(filter[1]); i++) {
       const ep = i < 10 ? `e00${i}` : i < 100 ? `e0${i}` : `e${i}`
-      shelljs.exec(yt(seriesNum, ep), (err) => {
+      opts.episode = ep
+      shelljs.exec(ytdl(opts), (err) => {
         if (process.env.NODE_ENV === 'development') console.error(err)
         onError(true)
-        failed = true
-        yt(seriesNum, ep)
+        opts.failed = true
+        ytdl(opts)
       })
     }
   } else {
     const ep = eps < 10 ? `e00${eps}` : eps < 100 ? `e0${eps}` : `e${eps}`
-    shelljs.exec(yt(seriesNum, ep), (err) => {
+    opts.episode = ep
+    shelljs.exec(ytdl(opts), (err) => {
       if (process.env.NODE_ENV === 'development') console.error(err)
       onError(true)
-      failed = true
-      yt(seriesNum, ep)
+      opts.failed = true
+      ytdl(opts)
     })
   }
 }

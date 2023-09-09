@@ -9,6 +9,7 @@ import {
   deleteOldCookies,
   fetchCookie,
   getPrimaryDomain,
+  hidiveDl,
   ytdl,
 } from '../utils/helper'
 import shelljs from 'shelljs'
@@ -50,7 +51,7 @@ export default class Hidive extends Command {
 
     console.clear()
     p.intro(`${color.bgCyan(color.black(' HiDive '))}`)
-    const hidiveDwnLd = await p.group(
+    const hidiveOpts = await p.group(
       {
         dir: () =>
           p.text({
@@ -266,7 +267,7 @@ export default class Hidive extends Command {
       },
     )
     // If confirm is false
-    if (!hidiveDwnLd.confirm) {
+    if (!hidiveOpts.confirm) {
       p.outro(
         `${color.bgCyan(
           color.black('  Download aborted! Thank you for using Downloadify.  '),
@@ -275,13 +276,13 @@ export default class Hidive extends Command {
       process.exit(1)
     }
     // Ask where to download video
-    const dirName = hidiveDwnLd.dir
+    const dirName = hidiveOpts.dir
     // Set download directory
     const dwnDir = path.join(os.homedir(), `Movies/${String(dirName)}`)
 
     // If no cookie file end the cli
     // Else run youtube-dl
-    if (!hidiveDwnLd.cookie) {
+    if (!hidiveOpts.cookie) {
       p.outro(
         `${color.bgCyan(
           color.black(
@@ -330,10 +331,10 @@ export default class Hidive extends Command {
       const opts = {
         location: dwnDir,
         season: {
-          num: Number(hidiveDwnLd.seasonNum) ?? 1,
+          num: Number(hidiveOpts.seasonNum) ?? 1,
           all: flags.season,
         },
-        episode: Number(hidiveDwnLd.episodeNum) ?? 1,
+        episode: Number(hidiveOpts.episodeNum) ?? 1,
         cookieFile: path.join(
           os.homedir(),
           `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
@@ -346,7 +347,7 @@ export default class Hidive extends Command {
         onError: (error: boolean) => (hasFailed = error),
       }
       try {
-        ytdl(opts)
+        hidiveDl(opts)
         if (hasFailed) {
           p.outro(
             `${color.bgRed(
