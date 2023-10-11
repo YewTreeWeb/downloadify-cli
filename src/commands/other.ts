@@ -309,7 +309,7 @@ export default class Other extends Command {
         subs: true,
       }
       try {
-        ytdl(opts)
+        shelljs.exec(ytdl(opts))
         p.outro(
           `${color.bgWhite(
             color.black(
@@ -323,7 +323,7 @@ export default class Other extends Command {
         p.outro(
           `${color.bgRed(
             color.black(
-              `  An error occured. Unable to download - ${color.underline(
+              `  An error occurred. Unable to download - ${color.underline(
                 color.white(name),
               )}  `,
             ),

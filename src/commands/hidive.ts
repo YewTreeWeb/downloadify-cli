@@ -10,7 +10,6 @@ import {
   fetchCookie,
   getPrimaryDomain,
   hidiveDl,
-  ytdl,
 } from '../utils/helper'
 import shelljs from 'shelljs'
 import { setTimeout } from 'node:timers/promises'
@@ -233,24 +232,6 @@ export default class Hidive extends Command {
             },
           })
         },
-        other: ({ results }) => {
-          if (!results.hasCookie) return
-          return p.select({
-            message: 'Would you like to add any other params to the download?',
-            initialValue: 'false',
-            maxItems: 2,
-            options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
-            ],
-          })
-        },
-        otherOpts: ({ results }) => {
-          if (!results.hasCookie || results.other === 'false') return
-          return p.text({
-            message: 'What other params would you like to add?',
-          })
-        },
         confirm: ({ results }) =>
           p.confirm({
             message: results.hasDir
@@ -340,19 +321,18 @@ export default class Hidive extends Command {
           `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
         ),
         url,
-        subs: true,
         ...(filter && {
           filter,
         }),
         onError: (error: boolean) => (hasFailed = error),
       }
       try {
-        hidiveDl(opts)
+        await hidiveDl(opts)
         if (hasFailed) {
           p.outro(
             `${color.bgRed(
               color.black(
-                `  An error occured. Unable to download - ${color.underline(
+                `  An error occurred. Unable to download - ${color.underline(
                   color.white(name),
                 )}  `,
               ),
@@ -373,7 +353,7 @@ export default class Hidive extends Command {
         p.outro(
           `${color.bgRed(
             color.black(
-              `  An error occured. Unable to download - ${color.underline(
+              `  An error occurred. Unable to download - ${color.underline(
                 color.white(name),
               )}  `,
             ),

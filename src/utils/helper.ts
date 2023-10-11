@@ -4,6 +4,7 @@ import * as path from 'node:path'
 import shelljs from 'shelljs'
 import puppeteer from 'puppeteer'
 import dayjs from 'dayjs'
+import { spawn } from 'node:child_process'
 
 // Always get the primary domain from a URL
 export const getPrimaryDomain = (url: string) => {
@@ -15,6 +16,31 @@ export const getPrimaryDomain = (url: string) => {
   const primaryDomain = parts[0]
   // Reconstruct the URL with the protocol and primary domain
   return `https://${primaryDomain}`
+}
+
+// Create a new directory
+export const newDir = (name: string) => {
+  const dir = path.join(os.homedir(), `Movies/${String(name)}`)
+  const cookiesDir = path.join(os.homedir(), `Movies/${String(name)}/cookies`)
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir)
+    }
+    if (!fs.existsSync(cookiesDir)) {
+      fs.mkdirSync(cookiesDir)
+    }
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+// Get Name of download
+export const getName = (url: string, pattern: RegExp): string | null => {
+  let name = null
+  // Function to extract the last part of the URL
+  const match = url.match(pattern)
+  if (match) name = match[1]
+  return name
 }
 
 // Check to see if the directory exists
@@ -48,16 +74,11 @@ export const checkCookiesExists = async (file: string): Promise<boolean> => {
 
 // Delete older cookie files
 export const deleteOldCookies = async (cookieDir: string, dirName: string) => {
-  const date = new Date()
-  const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1)
-    .toString()
-    .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
   const directory = path.dirname(cookieDir)
   const filesInDirectory = await fs.promises.readdir(directory)
   const otherCookieFiles = filesInDirectory.filter(
     (fileName) =>
       fileName !== path.basename(String(dirName)) &&
-      !fileName.includes(formattedDate) &&
       fileName.includes('cookies'),
   )
   const existingCookies = otherCookieFiles.map((file) => {
@@ -139,11 +160,10 @@ export const fetchCookie = async ({
 // youtude-dl downloader
 type YtdlOptions = {
   location: string
-  season: string | number
-  episode: string | number
+  season?: string | number
+  episode?: string | number
   cookieFile: string
   url: string
-  subs?: boolean
   failed?: boolean
 }
 export const ytdl = ({
@@ -152,19 +172,16 @@ export const ytdl = ({
   episode,
   cookieFile,
   url,
-  subs,
   failed,
-  ...rest
 }: YtdlOptions) => {
-  const formattedUrl = `${url}${season}${episode}`
+  const formattedUrl = `${url}${season ?? ''}${episode ?? ''}`
   return `${
     failed ? 'yt-dlp' : 'youtube-dl'
-  } --cookies ${cookieFile} ${formattedUrl} --referer ${formattedUrl}${
-    subs ? ' --all-subs' : ''
-  } --format "best[format_id*=en]" -o "${location}/%(series)s/%(season)s/%(title)s.%(ext)s" --user-agent "Mozilla/5.0" ${rest}`
+  } --cookies ${cookieFile} ${formattedUrl} --referer ${formattedUrl} --all-subs --embed-subs --format "best[format_id*=en]" -o "${location}/%(series)s/%(season)s/%(title)s.%(ext)s" --user-agent "Mozilla/5.0"`
 }
 
-type hidiveDlOptions = {
+// YouTube downloader for HiDive
+type HiDiveProps = {
   location: string
   season: {
     num: string | number
@@ -173,67 +190,123 @@ type hidiveDlOptions = {
   episode: string | number
   cookieFile: string
   url: string
-  subs: boolean
-  filter?: string[]
+  filter?: string | string[]
   onError: (error: boolean) => void
 }
+
 export const hidiveDl = ({
   location,
   season,
   episode,
   cookieFile,
   url,
-  subs,
   filter,
   onError,
-  ...rest
-}: hidiveDlOptions) => {
-  const series = Number(season.num)
-  const seriesNum = series < 10 ? `s0${series}` : `s${series}`
-  const eps = Number(episode)
+}: HiDiveProps) => {
+  const seriesNum = `s${season.num.toString().padStart(2, '0')}`
+  const eps = episode.toString().padStart(3, '0')
   const opts: YtdlOptions = {
     location,
     season: seriesNum,
     episode: eps,
     cookieFile,
     url,
-    subs,
     failed: false,
-    ...(rest && {
-      rest,
-    }),
   }
 
-  if (season.all) {
-    for (let i = 1; i < Number(episode); i++) {
-      const ep = i < 10 ? `e00${i}` : i < 100 ? `e0${i}` : `e${i}`
-      opts.episode = ep
-      shelljs.exec(ytdl(opts), (err) => {
-        if (process.env.NODE_ENV === 'development') console.error(err)
-        onError(true)
-        opts.failed = true
-        ytdl(opts)
-      })
-    }
-  } else if (filter) {
-    for (let i = Number(filter[0]); i < Number(filter[1]); i++) {
-      const ep = i < 10 ? `e00${i}` : i < 100 ? `e0${i}` : `e${i}`
-      opts.episode = ep
-      shelljs.exec(ytdl(opts), (err) => {
-        if (process.env.NODE_ENV === 'development') console.error(err)
-        onError(true)
-        opts.failed = true
-        ytdl(opts)
-      })
-    }
-  } else {
-    const ep = eps < 10 ? `e00${eps}` : eps < 100 ? `e0${eps}` : `e${eps}`
-    opts.episode = ep
+  const executeYtdl = (opts: YtdlOptions) => {
     shelljs.exec(ytdl(opts), (err) => {
       if (process.env.NODE_ENV === 'development') console.error(err)
       onError(true)
       opts.failed = true
-      ytdl(opts)
+      shelljs.exec(ytdl(opts))
     })
   }
+
+  if (season.all || (filter && filter.length === 2)) {
+    const start = filter ? Number(filter[0]) : 1
+    const end = filter ? Number(filter[1]) : Number(episode)
+    for (let i = start; i < end; i++) {
+      const ep = `e${i.toString().padStart(3, '0')}`
+      opts.episode = ep
+      executeYtdl(opts)
+    }
+  } else {
+    const ep = `e${eps}`
+    opts.episode = ep
+    executeYtdl(opts)
+  }
+}
+
+type CrunchyProps = {
+  location: string
+  username: string
+  password: string
+  cookieFile?: string
+  url: string
+  filter?: string
+  subs?: string | boolean
+  rest?: string
+}
+export const crunchy = async ({
+  location,
+  username,
+  password,
+  cookieFile,
+  url,
+  filter,
+  subs,
+  rest,
+}: CrunchyProps) => {
+  const login = `${username}:${password}`
+  const range = String(filter).length > 0 ? `\\[${filter}]` : ''
+
+  const opts: YtdlOptions = {
+    location,
+    cookieFile: cookieFile ?? '',
+    url,
+    failed: false,
+  }
+
+  const executeYtdl = (opts: YtdlOptions) => {
+    shelljs.exec(ytdl(opts), (err) => {
+      if (process.env.NODE_ENV === 'development') console.error(err)
+    })
+  }
+
+  const crunchyProcess = spawn(
+    'crunchy-cli',
+    [
+      '--credentials',
+      login,
+      // If all available subs is passed change argument to archive
+      ...(subs === 'all' ? 'archive' : 'download'),
+      '--skip-existing',
+      '-a',
+      'en-US',
+      '-r',
+      'best',
+      // Add the '-s en-US' argument only if subs is true
+      ...(subs && subs !== 'all' ? ['-s', 'en-GB'] : []),
+      '-o',
+      `${location}/{series_name}/Season {season_number}/{series_name}-S{season_number}E{episode_number}-{title}.mp4`,
+      `${url}${range}`,
+      // Add additional arguments
+      ...(rest ? rest : []),
+    ],
+    { stdio: 'inherit' },
+  )
+
+  if (process.env.NODE_ENV === 'development') console.info(crunchyProcess)
+
+  await new Promise<void>((resolve, reject) => {
+    crunchyProcess.on('close', (code) => {
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error(`crunchy-cli exited with code ${code}`))
+        if (cookieFile) executeYtdl(opts)
+      }
+    })
+  })
 }
