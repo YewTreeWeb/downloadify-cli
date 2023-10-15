@@ -1,5 +1,6 @@
 import * as os from 'node:os'
 import * as path from 'node:path'
+import * as fs from 'node:fs'
 import { Args, Command, Flags } from '@oclif/core'
 import * as p from '@clack/prompts'
 import color from 'picocolors'
@@ -10,8 +11,8 @@ import {
   fetchCookie,
   getPrimaryDomain,
   hidiveDl,
+  newDir,
 } from '../utils/helper'
-import shelljs from 'shelljs'
 import { setTimeout } from 'node:timers/promises'
 
 export default class Hidive extends Command {
@@ -28,6 +29,16 @@ export default class Hidive extends Command {
     filter: Flags.string({
       char: 'f',
       description: 'Download a range of episodes e.g. 1-5',
+      required: false,
+    }),
+    all_subs: Flags.boolean({
+      char: 'a',
+      description: 'Download all available subtitles',
+      required: false,
+    }),
+    verbose: Flags.boolean({
+      char: 'v',
+      description: 'If you want to include debug information in the output',
       required: false,
     }),
   }
@@ -82,8 +93,7 @@ export default class Hidive extends Command {
 
             sp.start(`Now creating ${String(results.dir)}\n`)
             await setTimeout(500)
-            shelljs.mkdir(`~/Movies/${String(results.dir)}`)
-            shelljs.mkdir(`~/Movies/${String(results.dir)}/cookies`)
+            await newDir(String(results.dir))
             sp.stop()
 
             dirCreated = !dirCreated
@@ -127,13 +137,9 @@ export default class Hidive extends Command {
           return p.password({
             message: 'Please enter your password for HiDive?',
             validate: (value) => {
-              const regex =
-                /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{10,}$/
               if (!value) return 'Please enter a password'
               if (value.length <= 10)
                 return 'Password must be more than 10 characters'
-              if (!regex.test(value))
-                return 'Password must contain at lease 1 uppercase, 1 special character, 1 number and 1 letter.'
             },
           })
         },
@@ -176,7 +182,9 @@ export default class Hidive extends Command {
             const hasDownloadedCookie =
               await checkCookiesExists(downloadedCookie)
             if (hasDownloadedCookie)
-              shelljs.mv(downloadedCookie, formattedCookieFile)
+              fs.rename(downloadedCookie, formattedCookieFile, (err) => {
+                if (process.env.NODE_ENV === 'development') console.error(err)
+              })
           }
 
           const cookieCheck = await checkCookiesExists(formattedCookieFile)
@@ -232,6 +240,36 @@ export default class Hidive extends Command {
             },
           })
         },
+        subtitles: async () => {
+          if (flags.all_subs) return
+          return p.select({
+            message: 'Would you like to download subtitles?',
+            initialValue: 'true',
+            maxItems: 2,
+            options: [
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
+            ],
+          })
+        },
+        other: ({ results }) => {
+          if (!results.hasCookie) return
+          return p.select({
+            message: 'Would you like to add any other params to the download?',
+            initialValue: 'false',
+            maxItems: 2,
+            options: [
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
+            ],
+          })
+        },
+        otherOpts: ({ results }) => {
+          if (!results.hasCookie || results.other === 'false') return
+          return p.text({
+            message: 'What other params would you like to add?',
+          })
+        },
         confirm: ({ results }) =>
           p.confirm({
             message: results.hasDir
@@ -247,13 +285,23 @@ export default class Hidive extends Command {
         },
       },
     )
+    // Create an outro for the cli
+    const outro = (msg: string, type: 'abort' | 'error' | 'success') => {
+      const colours: Record<
+        'abort' | 'error' | 'success',
+        (text: string) => string
+      > = {
+        abort: (text) => color.bgCyan(color.black(text)),
+        error: (text) => color.bgRed(color.black(text)),
+        success: (text) => color.bgBlue(color.black(text)),
+      }
+      const formattedText = colours[type](`  ${msg}  `)
+      return p.outro(formattedText)
+    }
+
     // If confirm is false
     if (!hidiveOpts.confirm) {
-      p.outro(
-        `${color.bgCyan(
-          color.black('  Download aborted! Thank you for using Downloadify.  '),
-        )}`,
-      )
+      outro('Download aborted! Thank you for using Downloadify.', 'abort')
       process.exit(1)
     }
     // Ask where to download video
@@ -264,14 +312,9 @@ export default class Hidive extends Command {
     // If no cookie file end the cli
     // Else run youtube-dl
     if (!hidiveOpts.cookie) {
-      p.outro(
-        `${color.bgCyan(
-          color.black(
-            `  Unable to download. Please add a valid and up-to-date cookies file to the ${String(
-              dirName,
-            )} directory.  `,
-          ),
-        )}`,
+      outro(
+        ` Unable to download. Please add a valid and up-to-date cookies file to the ${dirName} directory.`,
+        'error',
       )
       process.exit(1)
     } else {
@@ -280,30 +323,51 @@ export default class Hidive extends Command {
       const splitLast = splitUrl[1].split('/')
       const name = splitLast[0]
 
-      // Download from HiDive
-      const filter = flags.filter?.includes('-')
-        ? flags.filter.split('-')
-        : null
-
-      if (!filter && flags.filter) {
-        p.log.step('Filter must contain -')
+      // If the filter flag is passed check to see if valid
+      let filter: string | string[] = flags.filter ?? ''
+      if (
+        flags.filter &&
+        flags.filter?.length > 1 &&
+        !flags.filter.includes('-')
+      ) {
+        p.log.step('A filter range must contain - ')
+        const newVal = await p.text({
+          message: 'Please enter a new filter containing a -',
+        })
+        filter = String(newVal)
+      } else if (flags.filter && flags.filter?.length <= 1) {
+        p.log.step(
+          `${color.bgRed(
+            color.black(
+              '  A value is required and must be at least 2 characters  ',
+            ),
+          )}`,
+        )
         const proceed = await p.confirm({
           message: 'Would you like to continue without a filter?',
           initialValue: true,
         })
         if (!proceed) {
-          p.outro(
-            `${color.bgCyan(
-              color.black(
-                '  Download aborted! Thank you for using Downloadify.  ',
-              ),
-            )}`,
-          )
+          outro('Download aborted! Thank you for using Downloadify.', 'abort')
           process.exit(1)
         }
+      } else {
+        // Split the filter
+        filter = flags.filter ? flags?.filter.split('-') : ''
       }
 
       let hasFailed = false
+
+      // Add arguments to the rest param
+      let rest = ''
+      rest = Object.keys(flags)
+        .map((key) => {
+          if (key !== 'all_subs' && key !== 'filter') {
+            return `--${key}`
+          }
+        })
+        .join(' ')
+      rest += ` ${hidiveOpts.otherOpts}`
 
       const url = !args.url.includes(baseUrl)
         ? `${baseUrl}${args.url}`
@@ -315,6 +379,11 @@ export default class Hidive extends Command {
           num: Number(hidiveOpts.seasonNum) ?? 1,
           all: flags.season,
         },
+        subs: flags.all_subs
+          ? 'all'
+          : hidiveOpts.subtitles === 'true'
+          ? true
+          : false,
         episode: Number(hidiveOpts.episodeNum) ?? 1,
         cookieFile: path.join(
           os.homedir(),
@@ -324,32 +393,12 @@ export default class Hidive extends Command {
         ...(filter && {
           filter,
         }),
-        onError: (error: boolean) => (hasFailed = error),
+        ...(rest && {
+          rest,
+        }),
       }
-      try {
-        await hidiveDl(opts)
-        if (hasFailed) {
-          p.outro(
-            `${color.bgRed(
-              color.black(
-                `  An error occurred. Unable to download - ${color.underline(
-                  color.white(name),
-                )}  `,
-              ),
-            )}`,
-          )
-        } else {
-          p.outro(
-            `${color.bgCyan(
-              color.black(
-                `  All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
-                  color.black(name),
-                )}  `,
-              ),
-            )}`,
-          )
-        }
-      } catch (error) {
+      hasFailed = await hidiveDl(opts).failed
+      if (hasFailed) {
         p.outro(
           `${color.bgRed(
             color.black(
@@ -359,7 +408,16 @@ export default class Hidive extends Command {
             ),
           )}`,
         )
-        if (process.env.NODE_ENV === 'development') console.error(error)
+      } else {
+        p.outro(
+          `${color.bgCyan(
+            color.black(
+              `  All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
+                color.black(name),
+              )}  `,
+            ),
+          )}`,
+        )
       }
     }
   }

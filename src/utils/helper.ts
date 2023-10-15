@@ -164,20 +164,60 @@ type YtdlOptions = {
   episode?: string | number
   cookieFile: string
   url: string
-  failed?: boolean
+  subs: boolean | string
+  retry?: boolean
+  rest?: string
 }
-export const ytdl = ({
+export const ytdl = async ({
   location,
   season,
   episode,
   cookieFile,
   url,
-  failed,
+  subs = false,
+  retry = false,
+  rest,
 }: YtdlOptions) => {
   const formattedUrl = `${url}${season ?? ''}${episode ?? ''}`
-  return `${
-    failed ? 'yt-dlp' : 'youtube-dl'
-  } --cookies ${cookieFile} ${formattedUrl} --referer ${formattedUrl} --all-subs --embed-subs --format "best[format_id*=en]" -o "${location}/%(series)s/%(season)s/%(title)s.%(ext)s" --user-agent "Mozilla/5.0"`
+  const subtitles =
+    subs && subs === 'all'
+      ? '--all-subs'
+      : subs
+      ? ['--sub-lang', 'en-US, en-GB']
+      : []
+  const ytdlProcess = spawn(
+    retry ? 'yt-dlp' : 'youtube-dl',
+    [
+      '--cookies',
+      cookieFile,
+      formattedUrl,
+      '--referer',
+      formattedUrl,
+      '--format',
+      'best[format_id*=en]',
+      ...subtitles,
+      '--embed-subs',
+      '-o',
+      `${location}/%(series)s/%(season)s/%(title)s.%(ext)s`,
+      `--user-agent`,
+      `Mozilla/5.0`,
+      // Add additional arguments
+      ...(rest ? rest : []),
+    ],
+    { stdio: 'inherit' },
+  )
+
+  if (process.env.NODE_ENV === 'development') console.info(ytdlProcess)
+
+  await new Promise<void>((resolve, reject) => {
+    ytdlProcess.on('close', (code) => {
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error(`youtube-dl exited with code ${code}`))
+      }
+    })
+  })
 }
 
 // YouTube downloader for HiDive
@@ -191,7 +231,8 @@ type HiDiveProps = {
   cookieFile: string
   url: string
   filter?: string | string[]
-  onError: (error: boolean) => void
+  subs?: string | boolean
+  rest?: string
 }
 
 export const hidiveDl = ({
@@ -201,26 +242,21 @@ export const hidiveDl = ({
   cookieFile,
   url,
   filter,
-  onError,
+  subs = true,
+  rest,
 }: HiDiveProps) => {
   const seriesNum = `s${season.num.toString().padStart(2, '0')}`
   const eps = episode.toString().padStart(3, '0')
+  let failed = false
   const opts: YtdlOptions = {
     location,
     season: seriesNum,
     episode: eps,
     cookieFile,
     url,
-    failed: false,
-  }
-
-  const executeYtdl = (opts: YtdlOptions) => {
-    shelljs.exec(ytdl(opts), (err) => {
-      if (process.env.NODE_ENV === 'development') console.error(err)
-      onError(true)
-      opts.failed = true
-      shelljs.exec(ytdl(opts))
-    })
+    subs,
+    rest,
+    retry: false,
   }
 
   if (season.all || (filter && filter.length === 2)) {
@@ -229,13 +265,26 @@ export const hidiveDl = ({
     for (let i = start; i < end; i++) {
       const ep = `e${i.toString().padStart(3, '0')}`
       opts.episode = ep
-      executeYtdl(opts)
+      ytdl(opts).catch((error) => {
+        if (process.env.NODE_ENV === 'development') console.error(error)
+        opts.retry = true
+        ytdl(opts).catch(() => {
+          failed = true
+        })
+      })
     }
   } else {
     const ep = `e${eps}`
     opts.episode = ep
-    executeYtdl(opts)
+    ytdl(opts).catch((error) => {
+      if (process.env.NODE_ENV === 'development') console.error(error)
+      opts.retry = true
+      ytdl(opts).catch(() => {
+        failed = true
+      })
+    })
   }
+  return { failed }
 }
 
 type CrunchyProps = {
@@ -255,7 +304,7 @@ export const crunchy = async ({
   cookieFile,
   url,
   filter,
-  subs,
+  subs = true,
   rest,
 }: CrunchyProps) => {
   const login = `${username}:${password}`
@@ -265,13 +314,8 @@ export const crunchy = async ({
     location,
     cookieFile: cookieFile ?? '',
     url,
-    failed: false,
-  }
-
-  const executeYtdl = (opts: YtdlOptions) => {
-    shelljs.exec(ytdl(opts), (err) => {
-      if (process.env.NODE_ENV === 'development') console.error(err)
-    })
+    subs,
+    retry: false,
   }
 
   const crunchyProcess = spawn(
@@ -287,7 +331,7 @@ export const crunchy = async ({
       '-r',
       'best',
       // Add the '-s en-US' argument only if subs is true
-      ...(subs && subs !== 'all' ? ['-s', 'en-GB'] : []),
+      ...(subs && subs !== 'all' ? ['-s', 'en-US'] : []),
       '-o',
       `${location}/{series_name}/Season {season_number}/{series_name}-S{season_number}E{episode_number}-{title}.mp4`,
       `${url}${range}`,
@@ -305,7 +349,7 @@ export const crunchy = async ({
         resolve()
       } else {
         reject(new Error(`crunchy-cli exited with code ${code}`))
-        if (cookieFile) executeYtdl(opts)
+        if (cookieFile) ytdl(opts)
       }
     })
   })

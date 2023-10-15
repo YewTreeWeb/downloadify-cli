@@ -297,6 +297,8 @@ export default class Other extends Command {
       const splitLast = splitUrl[1].split('/')
       const name = splitLast[0]
 
+      let hasFailed = false
+
       const opts = {
         location: dwnDir,
         season: Number(otherOpts.seasonNum) ?? 1,
@@ -308,8 +310,11 @@ export default class Other extends Command {
         url: args.url,
         subs: true,
       }
-      try {
-        shelljs.exec(ytdl(opts))
+      await ytdl(opts).catch((error) => {
+        if (process.env.NODE_ENV === 'development') console.error(error)
+        hasFailed = true
+      })
+      if (!hasFailed) {
         p.outro(
           `${color.bgWhite(
             color.black(
@@ -319,7 +324,7 @@ export default class Other extends Command {
             ),
           )}`,
         )
-      } catch (error) {
+      } else {
         p.outro(
           `${color.bgRed(
             color.black(
@@ -329,7 +334,6 @@ export default class Other extends Command {
             ),
           )}`,
         )
-        if (process.env.NODE_ENV === 'development') console.error(error)
       }
     }
   }

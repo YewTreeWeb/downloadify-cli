@@ -4,7 +4,6 @@ import * as fs from 'node:fs'
 import { Args, Command, Flags } from '@oclif/core'
 import * as p from '@clack/prompts'
 import color from 'picocolors'
-import shelljs from 'shelljs'
 import {
   checkCookiesExists,
   checkDirExists,
@@ -246,13 +245,23 @@ export default class Crunchyroll extends Command {
       },
     )
 
+    // Create an outro for the cli
+    const outro = (msg: string, type: 'abort' | 'error' | 'success') => {
+      const colours: Record<
+        'abort' | 'error' | 'success',
+        (text: string) => string
+      > = {
+        abort: (text) => color.bgYellow(color.black(text)),
+        error: (text) => color.bgRed(color.black(text)),
+        success: (text) => color.bgYellow(color.black(text)),
+      }
+      const formattedText = colours[type](`  ${msg}  `)
+      return p.outro(formattedText)
+    }
+
     // If confirm is false
     if (!crunchyOpts.confirm) {
-      p.outro(
-        `${color.bgYellow(
-          color.black('  Download aborted! Thank you for using Downloadify.  '),
-        )}`,
-      )
+      outro('Download aborted! Thank you for using Downloadify.', 'abort')
       process.exit(1)
     }
     // Ask where to download video
@@ -291,13 +300,7 @@ export default class Crunchyroll extends Command {
         initialValue: true,
       })
       if (!proceed) {
-        p.outro(
-          `${color.bgYellow(
-            color.black(
-              '  Download aborted! Thank you for using Downloadify.  ',
-            ),
-          )}`,
-        )
+        outro('Download aborted! Thank you for using Downloadify.', 'abort')
         process.exit(1)
       }
     }
@@ -351,28 +354,22 @@ export default class Crunchyroll extends Command {
       hasFailed = error.message
     })
     if (hasFailed) {
-      p.outro(
-        `${color.bgRed(
-          color.black(
-            `  An error occurred. Unable to download - ${color.underline(
-              color.white(dwnName),
-            )}  `,
-          ),
+      outro(
+        `An error occurred. Unable to download - ${color.underline(
+          color.white(dwnName),
         )}`,
+        'error',
       )
       notifier.notify({
         title: 'Download Failed',
         message: `An error occurred. Unable to download - ${hasFailed}`,
       })
     } else {
-      p.outro(
-        `${color.bgYellow(
-          color.black(
-            `  All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
-              color.black(dwnName),
-            )}  `,
-          ),
+      outro(
+        `All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
+          color.black(dwnName),
         )}`,
+        'success',
       )
       notifier.notify({
         title: 'Download Successful',
