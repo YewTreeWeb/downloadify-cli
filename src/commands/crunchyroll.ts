@@ -5,7 +5,7 @@ import { Args, Command, Flags } from '@oclif/core'
 import * as p from '@clack/prompts'
 import color from 'picocolors'
 import {
-  checkCookiesExists,
+  checkFileExists,
   checkDirExists,
   crunchy,
   deleteOldCookies,
@@ -179,15 +179,14 @@ export default class Crunchyroll extends Command {
             await fetchCookie(cookieOps)
             sp.stop()
           } else {
-            const hasDownloadedCookie =
-              await checkCookiesExists(downloadedCookie)
+            const hasDownloadedCookie = await checkFileExists(downloadedCookie)
             if (hasDownloadedCookie)
               fs.rename(downloadedCookie, formattedCookieFile, (err) => {
                 if (process.env.NODE_ENV === 'development') console.error(err)
               })
           }
 
-          const cookieCheck = await checkCookiesExists(formattedCookieFile)
+          const cookieCheck = await checkFileExists(formattedCookieFile)
           if (!cookieCheck) {
             // If no cookie file found
             p.log.step(
@@ -316,14 +315,16 @@ export default class Crunchyroll extends Command {
     let hasFailed: boolean | string = false
 
     // Add arguments to the rest param
-    let rest = ''
-    rest = Object.keys(flags)
-      .map((key) => {
-        if (key !== 'all_subs' && key !== 'filter') {
-          return `--${key}`
-        }
-      })
-      .join(' ')
+    let rest: string | null = null
+    if (Object.keys(flags).length > 0) {
+      rest = Object.keys(flags)
+        .map((key, i) => {
+          if (key !== 'all_subs' && key !== 'save' && key !== 'default') {
+            return `--${key}`
+          }
+        })
+        .join(' ')
+    }
 
     const opts = {
       location: dwnDir,
@@ -336,15 +337,18 @@ export default class Crunchyroll extends Command {
         ? true
         : false,
       ...(crunchyOpts.cookie !== 'skip' && {
-        cookieFile: path.join(
-          os.homedir(),
-          `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
-        ),
+        cookieFile: {
+          path: path.join(
+            os.homedir(),
+            `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
+          ),
+          exists: crunchyOpts.cookie === 'true',
+        },
       }),
       ...(flags.filter && {
         filter,
       }),
-      ...(rest.length > 0 && {
+      ...(rest && {
         rest,
       }),
     }

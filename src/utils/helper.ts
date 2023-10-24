@@ -59,7 +59,7 @@ export const checkDirExists = async (dir: string): Promise<boolean> => {
 }
 
 // Check to see if cookies file exists
-export const checkCookiesExists = async (file: string): Promise<boolean> => {
+export const checkFileExists = async (file: string): Promise<boolean> => {
   let exists = false
   try {
     await fs.promises.access(file)
@@ -160,13 +160,17 @@ export const fetchCookie = async ({
 // youtude-dl downloader
 type YtdlOptions = {
   location: string
-  season?: string | number
-  episode?: string | number
-  cookieFile: string
+  season?: string | number | null
+  episode?: string | number | null
+  cookieFile?: {
+    path?: string
+    exists?: boolean
+  }
   url: string
   subs: boolean | string
+  format?: boolean
   retry?: boolean
-  rest?: string
+  rest?: string | null
 }
 export const ytdl = async ({
   location,
@@ -175,39 +179,48 @@ export const ytdl = async ({
   cookieFile,
   url,
   subs = false,
-  retry = false,
+  format,
   rest,
 }: YtdlOptions) => {
-  const formattedUrl = `${url}${season ?? ''}${episode ?? ''}`
+  const formattedUrl = `${url}${season || ''}${episode || ''}`
   const subtitles =
     subs && subs === 'all'
-      ? '--all-subs'
+      ? ['--sub-langs', 'all']
       : subs
-      ? ['--sub-lang', 'en-US, en-GB']
+      ? ['--sub-langs', 'en.*']
       : []
+  const cookies = cookieFile?.exists
+    ? ['--cookies', String(cookieFile.path)]
+    : !cookieFile?.exists
+    ? [
+        '--cookies-from-browser',
+        'chrome',
+        '--cookies',
+        String(cookieFile?.path),
+      ]
+    : []
   const ytdlProcess = spawn(
-    retry ? 'yt-dlp' : 'youtube-dl',
+    'yt-dlp',
     [
-      '--cookies',
-      cookieFile,
+      ...cookies,
       formattedUrl,
       '--referer',
       formattedUrl,
-      '--format',
-      'best[format_id*=en]',
+      ...(format ? ['--format', 'best[format_id*=en]'] : []),
       ...subtitles,
-      '--embed-subs',
+      ...(subs ? ['--embed-subs'] : []),
       '-o',
-      `${location}/%(series)s/%(season)s/%(title)s.%(ext)s`,
+      `${location}/%(series)s/%(season)s/%(?title)s.%(ext)s`,
       `--user-agent`,
       `Mozilla/5.0`,
       // Add additional arguments
-      ...(rest ? rest : []),
+      ...(rest ? [rest] : []),
     ],
     { stdio: 'inherit' },
   )
 
   if (process.env.NODE_ENV === 'development') console.info(ytdlProcess)
+  console.info(ytdlProcess)
 
   await new Promise<void>((resolve, reject) => {
     ytdlProcess.on('close', (code) => {
@@ -228,14 +241,17 @@ type HiDiveProps = {
     all?: boolean
   }
   episode: string | number
-  cookieFile: string
+  cookieFile?: {
+    path?: string
+    exists?: boolean
+  }
   url: string
   filter?: string | string[]
   subs?: string | boolean
   rest?: string
 }
 
-export const hidiveDl = ({
+export const hidiveDl = async ({
   location,
   season,
   episode,
@@ -247,7 +263,6 @@ export const hidiveDl = ({
 }: HiDiveProps) => {
   const seriesNum = `s${season.num.toString().padStart(2, '0')}`
   const eps = episode.toString().padStart(3, '0')
-  let failed = false
   const opts: YtdlOptions = {
     location,
     season: seriesNum,
@@ -256,7 +271,6 @@ export const hidiveDl = ({
     url,
     subs,
     rest,
-    retry: false,
   }
 
   if (season.all || (filter && filter.length === 2)) {
@@ -265,33 +279,23 @@ export const hidiveDl = ({
     for (let i = start; i < end; i++) {
       const ep = `e${i.toString().padStart(3, '0')}`
       opts.episode = ep
-      ytdl(opts).catch((error) => {
-        if (process.env.NODE_ENV === 'development') console.error(error)
-        opts.retry = true
-        ytdl(opts).catch(() => {
-          failed = true
-        })
-      })
+      await ytdl(opts)
     }
   } else {
     const ep = `e${eps}`
     opts.episode = ep
-    ytdl(opts).catch((error) => {
-      if (process.env.NODE_ENV === 'development') console.error(error)
-      opts.retry = true
-      ytdl(opts).catch(() => {
-        failed = true
-      })
-    })
+    await ytdl(opts)
   }
-  return { failed }
 }
 
 type CrunchyProps = {
   location: string
   username: string
   password: string
-  cookieFile?: string
+  cookieFile?: {
+    path?: string
+    exists?: boolean
+  }
   url: string
   filter?: string
   subs?: string | boolean
@@ -312,10 +316,9 @@ export const crunchy = async ({
 
   const opts: YtdlOptions = {
     location,
-    cookieFile: cookieFile ?? '',
+    cookieFile,
     url,
     subs,
-    retry: false,
   }
 
   const crunchyProcess = spawn(

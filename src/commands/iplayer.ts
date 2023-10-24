@@ -18,6 +18,11 @@ export default class Iplayer extends Command {
       description: 'Would you like to download the entire season',
       required: false,
     }),
+    verbose: Flags.boolean({
+      char: 'v',
+      description: 'If you want to include debug information in the output',
+      required: false,
+    }),
   }
 
   static args = {
@@ -121,6 +126,13 @@ export default class Iplayer extends Command {
     const dwnDir = path.join(os.homedir(), `Movies/get_iplayer`)
 
     let hasFailed = false
+    // Add arguments to the rest param
+    let rest = ''
+    rest = Object.keys(flags)
+      .map((key) => {
+        return `--${key}`
+      })
+      .join(' ')
 
     try {
       const isSeason = flags.season ? '--pid-recursive' : ''

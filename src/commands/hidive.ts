@@ -5,7 +5,7 @@ import { Args, Command, Flags } from '@oclif/core'
 import * as p from '@clack/prompts'
 import color from 'picocolors'
 import {
-  checkCookiesExists,
+  checkFileExists,
   checkDirExists,
   deleteOldCookies,
   fetchCookie,
@@ -179,15 +179,14 @@ export default class Hidive extends Command {
             await fetchCookie(cookieOps)
             sp.stop()
           } else {
-            const hasDownloadedCookie =
-              await checkCookiesExists(downloadedCookie)
+            const hasDownloadedCookie = await checkFileExists(downloadedCookie)
             if (hasDownloadedCookie)
               fs.rename(downloadedCookie, formattedCookieFile, (err) => {
                 if (process.env.NODE_ENV === 'development') console.error(err)
               })
           }
 
-          const cookieCheck = await checkCookiesExists(formattedCookieFile)
+          const cookieCheck = await checkFileExists(formattedCookieFile)
           if (!cookieCheck) {
             // If no cookie file found
             p.log.step(
@@ -359,7 +358,7 @@ export default class Hidive extends Command {
       let hasFailed = false
 
       // Add arguments to the rest param
-      let rest = ''
+      let rest = null
       rest = Object.keys(flags)
         .map((key) => {
           if (key !== 'all_subs' && key !== 'filter') {
@@ -385,10 +384,13 @@ export default class Hidive extends Command {
           ? true
           : false,
         episode: Number(hidiveOpts.episodeNum) ?? 1,
-        cookieFile: path.join(
-          os.homedir(),
-          `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
-        ),
+        cookieFile: {
+          path: path.join(
+            os.homedir(),
+            `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
+          ),
+          exists: hidiveOpts.cookie === 'true',
+        },
         url,
         ...(filter && {
           filter,
@@ -397,26 +399,20 @@ export default class Hidive extends Command {
           rest,
         }),
       }
-      hasFailed = await hidiveDl(opts).failed
+      await hidiveDl(opts).catch((error) => (hasFailed = true))
       if (hasFailed) {
-        p.outro(
-          `${color.bgRed(
-            color.black(
-              `  An error occurred. Unable to download - ${color.underline(
-                color.white(name),
-              )}  `,
-            ),
+        outro(
+          `An error occurred. Unable to download - ${color.underline(
+            color.white(name),
           )}`,
+          'error',
         )
       } else {
-        p.outro(
-          `${color.bgCyan(
-            color.black(
-              `  All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
-                color.black(name),
-              )}  `,
-            ),
+        outro(
+          `All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
+            color.black(name),
           )}`,
+          'success',
         )
       }
     }
