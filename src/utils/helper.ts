@@ -332,7 +332,6 @@ export const crunchy = async ({
   )
 
   if (process.env.NODE_ENV === 'development') console.info(crunchyProcess)
-  console.info(crunchyProcess)
 
   await new Promise<void>((resolve, reject) => {
     crunchyProcess.on('close', (code) => {
