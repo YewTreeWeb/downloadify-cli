@@ -16,9 +16,12 @@ import {
 import * as notifier from 'node-notifier'
 
 export default class Hidive extends Command {
-  static description = 'describe the command here'
+  static description =
+    'hidive commands gives the user the ability to download videos from the HiDive website'
 
-  static examples = ['<%= config.bin %> <%= command.id %>']
+  static examples = [
+    'downloadify hidive https://www.hidive.com/stream/the-eminence-in-shadow',
+  ]
 
   static flags = {
     season: Flags.boolean({
@@ -421,7 +424,7 @@ export default class Hidive extends Command {
         )
         notifier.notify({
           title: 'Download Failed',
-          message: `An error occurred. Unable to download - ${hasFailed}`,
+          message: `All downloads completed! Thank you for using Downloadify. Completed download - ${name}`,
         })
       }
     }

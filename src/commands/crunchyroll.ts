@@ -16,9 +16,12 @@ import {
 import * as notifier from 'node-notifier'
 
 export default class Crunchyroll extends Command {
-  static description = 'describe the command here'
+  static description =
+    'The crunchyroll command gives the user the ability to download videos from the Crunchyroll website.'
 
-  static examples = ['<%= config.bin %> <%= command.id %>']
+  static examples = [
+    'downloadify crunchyroll https://www.crunchyroll.com/series/GYEXQKJG6/dr-stone',
+  ]
 
   static flags = {
     all_subs: Flags.boolean({

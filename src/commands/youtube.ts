@@ -16,9 +16,12 @@ import {
 import * as notifier from 'node-notifier'
 
 export default class Youtube extends Command {
-  static description = 'describe the command here'
+  static description =
+    'This command allows the user to download videos on YouTube'
 
-  static examples = ['<%= config.bin %> <%= command.id %>']
+  static examples = [
+    'downloadify youtube https://www.youtube.com/watch?v=XPo8Z3tzyH0',
+  ]
 
   static flags = {
     playlist: Flags.boolean({

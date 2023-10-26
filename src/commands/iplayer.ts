@@ -7,9 +7,10 @@ import { checkDirExists, iplayerDl, newDir, ytdl } from '../utils/helper'
 import * as notifier from 'node-notifier'
 
 export default class Iplayer extends Command {
-  static description = 'describe the command here'
+  static description =
+    'The iplayer command gives the user the ability to download videos from the iPlayer UK website by providing the PID of the show/episode.'
 
-  static examples = ['<%= config.bin %> <%= command.id %>']
+  static examples = ['downloadify iplayer m001rswk']
 
   static flags = {
     season: Flags.boolean({

@@ -16,9 +16,12 @@ import {
 import * as notifier from 'node-notifier'
 
 export default class Other extends Command {
-  static description = 'describe the command here'
+  static description =
+    'Other command allows for videos to be download from multiple different websites by providing the URL.'
 
-  static examples = ['<%= config.bin %> <%= command.id %>']
+  static examples = [
+    'downloadify other https://www.dailymotion.com/video/x8k1i6w',
+  ]
 
   static flags = {
     all_subs: Flags.boolean({
