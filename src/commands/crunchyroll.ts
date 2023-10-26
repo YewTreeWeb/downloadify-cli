@@ -11,8 +11,8 @@ import {
   deleteOldCookies,
   fetchCookie,
   newDir,
+  ytdl,
 } from '../utils/helper'
-import { setTimeout } from 'node:timers/promises'
 import * as notifier from 'node-notifier'
 
 export default class Crunchyroll extends Command {
@@ -92,8 +92,7 @@ export default class Crunchyroll extends Command {
             )
 
             // Show spinner while directory is being created
-            sp.start(`Now creating ${String(results.dir)}\n`)
-            await setTimeout(500)
+            sp.start(`Now creating ${String(results.dir)}`)
             await newDir(String(results.dir))
             sp.stop()
 
@@ -313,6 +312,7 @@ export default class Crunchyroll extends Command {
       })
       .join(' ')
     let hasFailed: boolean | string = false
+    let retry: string | boolean = false
 
     // Add arguments to the rest param
     let rest: string | null = null
@@ -336,15 +336,6 @@ export default class Crunchyroll extends Command {
         : crunchyOpts.subtitles === 'true'
         ? true
         : false,
-      ...(crunchyOpts.cookie !== 'skip' && {
-        cookieFile: {
-          path: path.join(
-            os.homedir(),
-            `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
-          ),
-          exists: crunchyOpts.cookie === 'true',
-        },
-      }),
       ...(flags.filter && {
         filter,
       }),
@@ -355,8 +346,45 @@ export default class Crunchyroll extends Command {
 
     await crunchy(opts).catch((error) => {
       if (process.env.NODE_ENV === 'development') console.error(error)
-      hasFailed = error.message
+      retry = String(
+        p.select({
+          message: `Crunchyroll CLI failed to download ${dwnName}. Would you like to retry with yt-dlp?`,
+          initialValue: 'yes',
+          options: [
+            { value: 'true', label: 'Yes' },
+            { value: 'false', label: 'No' },
+          ],
+        }),
+      )
+      if (retry === 'false') {
+        hasFailed = error.message
+      }
     })
+
+    if (String(retry) === 'true') {
+      const newOpts = {
+        location: dwnDir,
+        url: args.url,
+        cookieFile: {
+          path: path.join(
+            os.homedir(),
+            `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
+          ),
+          exists: crunchyOpts.cookie === 'true',
+        },
+        format: true,
+        subs: flags.all_subs
+          ? 'all'
+          : crunchyOpts.subtitles === 'true'
+          ? true
+          : false,
+      }
+      await ytdl(newOpts).catch((error) => {
+        if (process.env.NODE_ENV === 'development') console.error(error)
+        hasFailed = error.message
+      })
+    }
+
     if (hasFailed) {
       outro(
         `An error occurred. Unable to download - ${color.underline(

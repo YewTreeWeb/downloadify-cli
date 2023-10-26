@@ -220,14 +220,13 @@ export const ytdl = async ({
   )
 
   if (process.env.NODE_ENV === 'development') console.info(ytdlProcess)
-  console.info(ytdlProcess)
 
   await new Promise<void>((resolve, reject) => {
     ytdlProcess.on('close', (code) => {
       if (code === 0) {
         resolve()
       } else {
-        reject(new Error(`youtube-dl exited with code ${code}`))
+        reject(new Error(`yt-dl exited with code ${code}`))
       }
     })
   })
@@ -270,6 +269,7 @@ export const hidiveDl = async ({
     cookieFile,
     url,
     subs,
+    format: true,
     rest,
   }
 
@@ -292,10 +292,6 @@ type CrunchyProps = {
   location: string
   username: string
   password: string
-  cookieFile?: {
-    path?: string
-    exists?: boolean
-  }
   url: string
   filter?: string
   subs?: string | boolean
@@ -305,7 +301,6 @@ export const crunchy = async ({
   location,
   username,
   password,
-  cookieFile,
   url,
   filter,
   subs = true,
@@ -313,14 +308,6 @@ export const crunchy = async ({
 }: CrunchyProps) => {
   const login = `${username}:${password}`
   const range = String(filter).length > 0 ? `\\[${filter}]` : ''
-
-  const opts: YtdlOptions = {
-    location,
-    cookieFile,
-    url,
-    subs,
-  }
-
   const crunchyProcess = spawn(
     'crunchy-cli',
     [
@@ -352,7 +339,54 @@ export const crunchy = async ({
         resolve()
       } else {
         reject(new Error(`crunchy-cli exited with code ${code}`))
-        if (cookieFile) ytdl(opts)
+      }
+    })
+  })
+}
+
+type IPlayerProps = {
+  location: string
+  pid: string
+  season?: boolean
+  subs?: string | boolean
+  rest?: string
+}
+export const iplayerDl = async ({
+  location,
+  pid,
+  season,
+  subs = false,
+  rest,
+}: IPlayerProps) => {
+  const iPlayerProcess = spawn(
+    'get_iplayer',
+    [
+      '--pid',
+      pid,
+      ...(season ? ['--pid-recursive'] : []),
+      '--tv-quality=fhd',
+      ...(subs ? ['--subtitles'] : []),
+      '--output',
+      location,
+      '--subdir',
+      '--subdir-format',
+      '<nameshort>/Season<seriesnum>',
+      '--file-prefix',
+      '<nameshort>-S<seriesnum>E<episodenum>-<episodeshort>',
+      // Add additional arguments
+      ...(rest ? rest : []),
+    ],
+    { stdio: 'inherit' },
+  )
+
+  if (process.env.NODE_ENV === 'development') console.info(iPlayerProcess)
+
+  await new Promise<void>((resolve, reject) => {
+    iPlayerProcess.on('close', (code) => {
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error(`get_iplayer exited with code ${code}`))
       }
     })
   })

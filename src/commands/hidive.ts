@@ -13,7 +13,7 @@ import {
   hidiveDl,
   newDir,
 } from '../utils/helper'
-import { setTimeout } from 'node:timers/promises'
+import * as notifier from 'node-notifier'
 
 export default class Hidive extends Command {
   static description = 'describe the command here'
@@ -91,8 +91,7 @@ export default class Hidive extends Command {
               )}`,
             )
 
-            sp.start(`Now creating ${String(results.dir)}\n`)
-            await setTimeout(500)
+            sp.start(`Now creating ${String(results.dir)}`)
             await newDir(String(results.dir))
             sp.stop()
 
@@ -115,7 +114,7 @@ export default class Hidive extends Command {
         cookie: () =>
           p.select({
             message: 'Have you already downloaded a HiDive cookie file?',
-            initialValue: 'true',
+            initialValue: 'No',
             maxItems: 2,
             options: [
               { value: 'true', label: 'Yes' },
@@ -149,42 +148,37 @@ export default class Hidive extends Command {
             os.homedir(),
             `Movies/${String(results.dir)}/cookies`,
           )
+          // Remove outdated cookies
+          deleteOldCookies(cookieDir, String(results.dir))
+
+          // Display warning message
+          if (results.cookie === 'false') {
+            p.log.step(
+              'An attempt to downloaded cookies automatically will start soon. Please make sure the website you are downloading from is open in Chrome',
+            )
+          }
+
+          // Skip to next command if previous isn't true
+          if (results.cookie !== 'true') return
+
           const downloadedCookie = path.join(
             os.homedir(),
             `Downloads/www.hidive.com_cookies.txt`,
           )
-          const formattedUrl = getPrimaryDomain(args.url)
           const formattedCookieFile = `${cookieDir}/cookies-${formattedDate}.txt`
           // Remove outdated cookies
           deleteOldCookies(cookieDir, String(results.dir))
 
-          // Fetch cookie if previous answer was no
-          // if yes move cookie and rename
-          if (results.cookie === 'false') {
-            const cookieOps = {
-              url: `${formattedUrl}/account/login`,
-              user: {
-                name: String(results.username),
-                el: '#Email',
-              },
-              pass: {
-                word: String(results.password),
-                el: '#Password',
-              },
-              cookieDir,
-              button: '#signInButton',
-              selector: '#hdLogo',
-            }
-            sp.start('fetching cookie')
-            await fetchCookie(cookieOps)
-            sp.stop()
-          } else {
-            const hasDownloadedCookie = await checkFileExists(downloadedCookie)
-            if (hasDownloadedCookie)
-              fs.rename(downloadedCookie, formattedCookieFile, (err) => {
-                if (process.env.NODE_ENV === 'development') console.error(err)
-              })
+          // Move cookie file from Downloads
+          // rename file to have date
+          sp.start('fetching cookie')
+          const hasDownloadedCookie = await checkFileExists(downloadedCookie)
+          if (hasDownloadedCookie) {
+            fs.rename(downloadedCookie, formattedCookieFile, (err) => {
+              if (process.env.NODE_ENV === 'development') console.error(err)
+            })
           }
+          sp.stop()
 
           const cookieCheck = await checkFileExists(formattedCookieFile)
           if (!cookieCheck) {
@@ -214,9 +208,8 @@ export default class Hidive extends Command {
 
           return cookie
         },
-        seasonNum: ({ results }) => {
-          if (!results.hasCookie) return
-          return p.text({
+        seasonNum: () =>
+          p.text({
             message: 'What is the number of the season you want to download?',
             initialValue: '1',
             validate: (value) => {
@@ -224,10 +217,9 @@ export default class Hidive extends Command {
               if (!regex.test(value))
                 return 'Season number must be a positive number'
             },
-          })
-        },
+          }),
         episodeNum: ({ results }) => {
-          if (!results.hasCookie || flags.filter) return
+          if (flags.filter) return
           return p.text({
             message: flags.season
               ? 'Enter the number of episodes there are in the season'
@@ -251,9 +243,8 @@ export default class Hidive extends Command {
             ],
           })
         },
-        other: ({ results }) => {
-          if (!results.hasCookie) return
-          return p.select({
+        other: () =>
+          p.select({
             message: 'Would you like to add any other params to the download?',
             initialValue: 'false',
             maxItems: 2,
@@ -261,10 +252,9 @@ export default class Hidive extends Command {
               { value: 'true', label: 'Yes' },
               { value: 'false', label: 'No' },
             ],
-          })
-        },
+          }),
         otherOpts: ({ results }) => {
-          if (!results.hasCookie || results.other === 'false') return
+          if (results.other === 'false') return
           return p.text({
             message: 'What other params would you like to add?',
           })
@@ -355,18 +345,26 @@ export default class Hidive extends Command {
         filter = flags.filter ? flags?.filter.split('-') : ''
       }
 
-      let hasFailed = false
+      let hasFailed: string | boolean = false
 
       // Add arguments to the rest param
       let rest = null
-      rest = Object.keys(flags)
-        .map((key) => {
-          if (key !== 'all_subs' && key !== 'filter') {
-            return `--${key}`
-          }
-        })
-        .join(' ')
-      rest += ` ${hidiveOpts.otherOpts}`
+      if (Object.keys(flags).length > 0) {
+        rest = Object.keys(flags)
+          .map((key) => {
+            if (key !== 'all_subs' && key !== 'filter') {
+              return `--${key}`
+            }
+          })
+          .join(' ')
+      }
+      if (hidiveOpts.otherOpts && String(hidiveOpts.otherOpts).length > 0) {
+        const flags = String(hidiveOpts.otherOpts)
+          .split(' ')
+          .map((flag) => (flag.startsWith('--') ? flag : `--${flag}`))
+          .join(' ')
+        rest += flags
+      }
 
       const url = !args.url.includes(baseUrl)
         ? `${baseUrl}${args.url}`
@@ -399,7 +397,10 @@ export default class Hidive extends Command {
           rest,
         }),
       }
-      await hidiveDl(opts).catch((error) => (hasFailed = true))
+      await hidiveDl(opts).catch((error) => {
+        if (process.env.NODE_ENV === 'development') console.error(error)
+        hasFailed = error.message
+      })
       if (hasFailed) {
         outro(
           `An error occurred. Unable to download - ${color.underline(
@@ -407,6 +408,10 @@ export default class Hidive extends Command {
           )}`,
           'error',
         )
+        notifier.notify({
+          title: 'Download Failed',
+          message: `An error occurred. Unable to download - ${hasFailed}`,
+        })
       } else {
         outro(
           `All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
@@ -414,6 +419,10 @@ export default class Hidive extends Command {
           )}`,
           'success',
         )
+        notifier.notify({
+          title: 'Download Failed',
+          message: `An error occurred. Unable to download - ${hasFailed}`,
+        })
       }
     }
   }
