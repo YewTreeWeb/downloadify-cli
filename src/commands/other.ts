@@ -8,12 +8,11 @@ import {
   checkFileExists,
   checkDirExists,
   deleteOldCookies,
-  fetchCookie,
   getPrimaryDomain,
   newDir,
   ytdl,
 } from '../utils/helper'
-import * as notifier from 'node-notifier'
+import notifier from 'node-notifier'
 
 export default class Other extends Command {
   static description =
@@ -57,6 +56,16 @@ export default class Other extends Command {
       .toString()
       .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
     const formattedUrl = getPrimaryDomain(args.url)
+    function extractDomainFromURL(url: string): string | null {
+      try {
+        const urlObject = new URL(url)
+        return urlObject.hostname
+      } catch (error) {
+        // Handle invalid URLs or other errors here
+        console.error('Invalid URL:', error)
+        return null
+      }
+    }
 
     console.clear()
     p.intro(`${color.bgWhite(color.black(' Other '))}`)
@@ -81,7 +90,14 @@ export default class Other extends Command {
           let dirCreated = false
           // If directory doesn't exist create it
           // Else once directory is created, notify user
-          if (!dirExists) {
+          if (dirExists) {
+            dirCreated = !dirCreated
+            p.log.step(
+              `${color.bgGreen(
+                color.black(` Found directory ${String(results.dir)} `),
+              )}`,
+            )
+          } else {
             p.log.step(
               `${color.bgRed(
                 color.white(
@@ -100,14 +116,8 @@ export default class Other extends Command {
                 color.black(` Successfully created ${String(results.dir)} `),
               )}`,
             )
-          } else {
-            dirCreated = !dirCreated
-            p.log.step(
-              `${color.bgGreen(
-                color.black(` Found directory ${String(results.dir)} `),
-              )}`,
-            )
           }
+
           return dirCreated
         },
         cookie: () => {
@@ -184,17 +194,6 @@ export default class Other extends Command {
 
           // Skip to next command if previous isn't true
           if (results.cookie !== 'true') return
-
-          function extractDomainFromURL(url: string): string | null {
-            try {
-              const urlObject = new URL(url)
-              return urlObject.hostname
-            } catch (error) {
-              // Handle invalid URLs or other errors here
-              console.error('Invalid URL:', error)
-              return null
-            }
-          }
 
           const domain = extractDomainFromURL(args.url)
           const downloadedCookie = path.join(
@@ -361,6 +360,7 @@ export default class Other extends Command {
         })
         .join(' ')
     }
+
     if (otherOpts.moreOpts && String(otherOpts.moreOpts).length > 0) {
       const flags = String(otherOpts.moreOpts)
         .split(' ')
@@ -399,11 +399,7 @@ export default class Other extends Command {
             },
           }),
         url: args.url,
-        subs: flags.all_subs
-          ? 'all'
-          : otherOpts.subtitles === 'true'
-          ? true
-          : false,
+        subs: flags.all_subs ? 'all' : otherOpts.subtitles === 'true',
         format: otherOpts.enFormat === 'true',
         ...(rest && {
           rest,
@@ -413,7 +409,14 @@ export default class Other extends Command {
         if (process.env.NODE_ENV === 'development') console.error(error)
         hasFailed = error.message
       })
-      if (!hasFailed) {
+
+      if (hasFailed) {
+        outro('An error occurred. Unable to download.', 'error')
+        notifier.notify({
+          title: 'Download Failed',
+          message: `An error occurred. Unable to download - ${hasFailed}`,
+        })
+      } else {
         outro(
           'All downloads completed! Thank you for using Downloadify.',
           'success',
@@ -421,12 +424,6 @@ export default class Other extends Command {
         notifier.notify({
           title: 'Download Successful',
           message: `All downloads completed! Thank you for using Downloadify. Completed download`,
-        })
-      } else {
-        outro('An error occurred. Unable to download.', 'error')
-        notifier.notify({
-          title: 'Download Failed',
-          message: `An error occurred. Unable to download - ${hasFailed}`,
         })
       }
     }

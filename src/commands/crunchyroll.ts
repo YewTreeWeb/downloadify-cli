@@ -1,19 +1,19 @@
+import * as p from '@clack/prompts'
+import { Args, Command, Flags } from '@oclif/core'
+import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as fs from 'node:fs'
-import { Args, Command, Flags } from '@oclif/core'
-import * as p from '@clack/prompts'
+import notifier from 'node-notifier'
 import color from 'picocolors'
+
 import {
-  checkFileExists,
   checkDirExists,
+  checkFileExists,
   crunchy,
   deleteOldCookies,
-  fetchCookie,
   newDir,
   ytdl,
 } from '../utils/helper'
-import * as notifier from 'node-notifier'
 
 export default class Crunchyroll extends Command {
   static description =
@@ -85,7 +85,14 @@ export default class Crunchyroll extends Command {
           let dirCreated = false
           // If directory doesn't exist create it
           // Else once directory is created, notify user
-          if (!dirExists) {
+          if (dirExists) {
+            dirCreated = !dirCreated
+            p.log.step(
+              `${color.bgGreen(
+                color.black(` Found directory ${String(results.dir)} `),
+              )}`,
+            )
+          } else {
             p.log.step(
               `${color.bgRed(
                 color.white(
@@ -105,14 +112,8 @@ export default class Crunchyroll extends Command {
                 color.black(` Successfully created ${String(results.dir)} `),
               )}`,
             )
-          } else {
-            dirCreated = !dirCreated
-            p.log.step(
-              `${color.bgGreen(
-                color.black(` Found directory ${String(results.dir)} `),
-              )}`,
-            )
           }
+
           return dirCreated
         },
         cookie: () =>
@@ -152,61 +153,55 @@ export default class Crunchyroll extends Command {
             os.homedir(),
             `Movies/${String(results.dir)}/cookies`,
           )
+          // Remove outdated cookies
+          deleteOldCookies(cookieDir, String(results.dir))
+
+          // Display warning message
+          if (results.cookie === 'false') {
+            p.log.step(
+              'An attempt to downloaded cookies automatically will start soon. Please make sure the website you are downloading from is open in Chrome',
+            )
+          }
+
+          // Skip to next command if previous isn't true
+          if (results.cookie !== 'true') return
+
           const downloadedCookie = path.join(
             os.homedir(),
             `Downloads/www.crunchyroll.com_cookies.txt`,
           )
           const formattedCookieFile = `${cookieDir}/cookies-${formattedDate}.txt`
-          // Remove outdated cookies
-          deleteOldCookies(cookieDir, String(results.dir))
 
-          // Fetch cookie if previous answer was no
-          // if yes move cookie and rename
-          if (results.cookie === 'false') {
-            const cookieOps = {
-              url: `https://sso.crunchyroll.com/login`,
-              user: {
-                name: String(results.username),
-                el: '#username_input',
-              },
-              pass: {
-                word: String(results.password),
-                el: '#password_input',
-              },
-              cookieDir,
-              button: '#submit_button',
-              selector: '.header-logo',
-            }
-            sp.start('fetching cookie')
-            await fetchCookie(cookieOps)
-            sp.stop()
-          } else {
-            const hasDownloadedCookie = await checkFileExists(downloadedCookie)
-            if (hasDownloadedCookie)
-              fs.rename(downloadedCookie, formattedCookieFile, (err) => {
-                if (process.env.NODE_ENV === 'development') console.error(err)
-              })
-          }
+          // Move cookie file from Downloads
+          // rename file to have date
+          sp.start('fetching cookie')
+          const hasDownloadedCookie = await checkFileExists(downloadedCookie)
+          if (hasDownloadedCookie)
+            fs.rename(downloadedCookie, formattedCookieFile, (err) => {
+              if (process.env.NODE_ENV === 'development') console.error(err)
+            })
+          sp.stop()
 
           const cookieCheck = await checkFileExists(formattedCookieFile)
-          if (!cookieCheck) {
-            // If no cookie file found
+
+          if (cookieCheck) {
+            // If cookie file found
+            cookie = true
             p.log.step(
-              `${color.bgRed(
+              `${color.bgGreen(
                 color.black(
-                  ` Failed to find an up to date cookie file in the ${String(
+                  ` Success an up to date cookie file was found in the ${String(
                     results.dir,
                   )} directory `,
                 ),
               )}`,
             )
           } else {
-            // If cookie file found
-            cookie = !cookie
+            // If no cookie file found
             p.log.step(
-              `${color.bgGreen(
+              `${color.bgRed(
                 color.black(
-                  ` Success an up to date cookie file was found in the ${String(
+                  ` Failed to find an up to date cookie file in the ${String(
                     results.dir,
                   )} directory `,
                 ),
@@ -265,6 +260,7 @@ export default class Crunchyroll extends Command {
       outro('Download aborted! Thank you for using Downloadify.', 'abort')
       process.exit(1)
     }
+
     // Ask where to download video
     const dirName = crunchyOpts.dir
     // Set download directory
@@ -307,13 +303,10 @@ export default class Crunchyroll extends Command {
     }
 
     // Get the name of the video
-    const splitPath = String(args.url).split('/')
-    const words = String(splitPath[1]).split('-')
-    const dwnName = words
-      .map((word) => {
-        return word[0].toUpperCase() + word.substring(1)
-      })
-      .join(' ')
+    const splitPath = args.url.split('/')
+    const words = splitPath[1].split('-')
+    const dwnName = words[0].toUpperCase() + words.slice(1)
+
     let hasFailed: boolean | string = false
     let retry: string | boolean = false
 
@@ -321,11 +314,9 @@ export default class Crunchyroll extends Command {
     let rest: string | null = null
     if (Object.keys(flags).length > 0) {
       rest = Object.keys(flags)
-        .map((key, i) => {
-          if (key !== 'all_subs' && key !== 'save' && key !== 'default') {
-            return `--${key}`
-          }
-        })
+        .map((key) =>
+          key !== 'all_subs' && key !== 'filter' ? `--${key}` : '',
+        )
         .join(' ')
     }
 
@@ -334,11 +325,7 @@ export default class Crunchyroll extends Command {
       url: args.url,
       username: String(crunchyOpts.username),
       password: String(crunchyOpts.password),
-      subs: flags.all_subs
-        ? 'all'
-        : crunchyOpts.subtitles === 'true'
-        ? true
-        : false,
+      subs: flags.all_subs ? 'all' : crunchyOpts.subtitles === 'true',
       ...(flags.filter && {
         filter,
       }),
@@ -376,11 +363,7 @@ export default class Crunchyroll extends Command {
           exists: crunchyOpts.cookie === 'true',
         },
         format: true,
-        subs: flags.all_subs
-          ? 'all'
-          : crunchyOpts.subtitles === 'true'
-          ? true
-          : false,
+        subs: flags.all_subs ? 'all' : crunchyOpts.subtitles === 'true',
       }
       await ytdl(newOpts).catch((error) => {
         if (process.env.NODE_ENV === 'development') console.error(error)

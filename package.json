@@ -1,6 +1,6 @@
 {
   "name": "downloadify-cli",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "A cli to download videos from the web",
   "author": "Mathew Teague",
   "bin": {

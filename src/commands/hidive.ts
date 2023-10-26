@@ -1,3 +1,4 @@
+/* eslint-disable complexity */
 import * as os from 'node:os'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
@@ -8,12 +9,10 @@ import {
   checkFileExists,
   checkDirExists,
   deleteOldCookies,
-  fetchCookie,
-  getPrimaryDomain,
   hidiveDl,
   newDir,
 } from '../utils/helper'
-import * as notifier from 'node-notifier'
+import notifier from 'node-notifier'
 
 export default class Hidive extends Command {
   static description =
@@ -112,6 +111,7 @@ export default class Hidive extends Command {
               )}`,
             )
           }
+
           return dirCreated
         },
         cookie: () =>
@@ -296,20 +296,16 @@ export default class Hidive extends Command {
       outro('Download aborted! Thank you for using Downloadify.', 'abort')
       process.exit(1)
     }
+
     // Ask where to download video
     const dirName = hidiveOpts.dir
+
     // Set download directory
     const dwnDir = path.join(os.homedir(), `Movies/${String(dirName)}`)
 
     // If no cookie file end the cli
     // Else run youtube-dl
-    if (!hidiveOpts.cookie) {
-      outro(
-        ` Unable to download. Please add a valid and up-to-date cookies file to the ${dirName} directory.`,
-        'error',
-      )
-      process.exit(1)
-    } else {
+    if (hidiveOpts.cookie) {
       // Split the URL to get the name of the download
       const splitUrl = args.url.split('stream/')
       const splitLast = splitUrl[1].split('/')
@@ -354,13 +350,12 @@ export default class Hidive extends Command {
       let rest = null
       if (Object.keys(flags).length > 0) {
         rest = Object.keys(flags)
-          .map((key) => {
-            if (key !== 'all_subs' && key !== 'filter') {
-              return `--${key}`
-            }
-          })
+          .map((key) =>
+            key !== 'all_subs' && key !== 'filter' ? `--${key}` : '',
+          )
           .join(' ')
       }
+
       if (hidiveOpts.otherOpts && String(hidiveOpts.otherOpts).length > 0) {
         const flags = String(hidiveOpts.otherOpts)
           .split(' ')
@@ -369,9 +364,9 @@ export default class Hidive extends Command {
         rest += flags
       }
 
-      const url = !args.url.includes(baseUrl)
-        ? `${baseUrl}${args.url}`
-        : args.url
+      const url = args.url.includes(baseUrl)
+        ? args.url
+        : `${baseUrl}${args.url}`
 
       const opts = {
         location: dwnDir,
@@ -379,11 +374,7 @@ export default class Hidive extends Command {
           num: Number(hidiveOpts.seasonNum) ?? 1,
           all: flags.season,
         },
-        subs: flags.all_subs
-          ? 'all'
-          : hidiveOpts.subtitles === 'true'
-          ? true
-          : false,
+        subs: flags.all_subs ? 'all' : hidiveOpts.subtitles === 'true',
         episode: Number(hidiveOpts.episodeNum) ?? 1,
         cookieFile: {
           path: path.join(
@@ -404,6 +395,7 @@ export default class Hidive extends Command {
         if (process.env.NODE_ENV === 'development') console.error(error)
         hasFailed = error.message
       })
+
       if (hasFailed) {
         outro(
           `An error occurred. Unable to download - ${color.underline(
@@ -427,6 +419,12 @@ export default class Hidive extends Command {
           message: `All downloads completed! Thank you for using Downloadify. Completed download - ${name}`,
         })
       }
+    } else {
+      outro(
+        `Unable to download. Please add a valid and up-to-date cookies file to the ${dirName} directory.`,
+        'error',
+      )
+      process.exit(1)
     }
   }
 }

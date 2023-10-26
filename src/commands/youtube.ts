@@ -4,16 +4,8 @@ import * as fs from 'node:fs'
 import { Args, Command, Flags } from '@oclif/core'
 import * as p from '@clack/prompts'
 import color from 'picocolors'
-import {
-  checkFileExists,
-  checkDirExists,
-  deleteOldCookies,
-  fetchCookie,
-  getPrimaryDomain,
-  newDir,
-  ytdl,
-} from '../utils/helper'
-import * as notifier from 'node-notifier'
+import { checkDirExists, newDir, ytdl } from '../utils/helper'
+import notifier from 'node-notifier'
 
 export default class Youtube extends Command {
   static description =
@@ -76,7 +68,14 @@ export default class Youtube extends Command {
           let dirCreated = false
           // If directory doesn't exist create it
           // Else once directory is created, notify user
-          if (!dirExists) {
+          if (dirExists) {
+            dirCreated = !dirCreated
+            p.log.step(
+              `${color.bgGreen(
+                color.black(` Found directory ${String(results.dir)} `),
+              )}`,
+            )
+          } else {
             p.log.step(
               `${color.bgRed(
                 color.white(
@@ -95,14 +94,8 @@ export default class Youtube extends Command {
                 color.black(` Successfully created ${String(results.dir)} `),
               )}`,
             )
-          } else {
-            dirCreated = !dirCreated
-            p.log.step(
-              `${color.bgGreen(
-                color.black(` Found directory ${String(results.dir)} `),
-              )}`,
-            )
           }
+
           return dirCreated
         },
         subtitles: async () => {
@@ -199,6 +192,7 @@ export default class Youtube extends Command {
         })
         .join(' ')
     }
+
     if (ytOpts.moreOpts && String(ytOpts.moreOpts).length > 0) {
       const flags = String(ytOpts.moreOpts)
         .split(' ')
@@ -212,7 +206,7 @@ export default class Youtube extends Command {
     const opts = {
       location: dwnDir,
       url: args.url,
-      subs: ytOpts.subtitles === 'true' ? true : false,
+      subs: ytOpts.subtitles === 'true',
       format: ytOpts.enFormat === 'true',
       ...(rest && {
         rest,
@@ -223,7 +217,13 @@ export default class Youtube extends Command {
       hasFailed = error.message
     })
 
-    if (!hasFailed) {
+    if (hasFailed) {
+      outro('An error occurred. Unable to download.', 'error')
+      notifier.notify({
+        title: 'Download Failed',
+        message: `An error occurred. Unable to download - ${hasFailed}`,
+      })
+    } else {
       outro(
         'All downloads completed! Thank you for using Downloadify.',
         'success',
@@ -231,12 +231,6 @@ export default class Youtube extends Command {
       notifier.notify({
         title: 'Download Successful',
         message: `All downloads completed! Thank you for using Downloadify. Completed download`,
-      })
-    } else {
-      outro('An error occurred. Unable to download.', 'error')
-      notifier.notify({
-        title: 'Download Failed',
-        message: `An error occurred. Unable to download - ${hasFailed}`,
       })
     }
   }

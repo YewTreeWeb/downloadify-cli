@@ -191,14 +191,14 @@ export const ytdl = async ({
       : []
   const cookies = cookieFile?.exists
     ? ['--cookies', String(cookieFile.path)]
-    : !cookieFile?.exists
-    ? [
+    : cookieFile?.exists
+    ? []
+    : [
         '--cookies-from-browser',
         'chrome',
         '--cookies',
         String(cookieFile?.path),
       ]
-    : []
   const ytdlProcess = spawn(
     'yt-dlp',
     [
@@ -279,12 +279,12 @@ export const hidiveDl = async ({
     for (let i = start; i < end; i++) {
       const ep = `e${i.toString().padStart(3, '0')}`
       opts.episode = ep
-      await ytdl(opts)
+      ytdl(opts)
     }
   } else {
     const ep = `e${eps}`
     opts.episode = ep
-    await ytdl(opts)
+    ytdl(opts)
   }
 }
 
@@ -307,14 +307,14 @@ export const crunchy = async ({
   rest,
 }: CrunchyProps) => {
   const login = `${username}:${password}`
-  const range = String(filter).length > 0 ? `\\[${filter}]` : ''
+  const range = filter && String(filter).length > 0 ? `\\[${filter}]` : ''
   const crunchyProcess = spawn(
     'crunchy-cli',
     [
       '--credentials',
       login,
       // If all available subs is passed change argument to archive
-      ...(subs === 'all' ? 'archive' : 'download'),
+      ...(subs === 'all' ? ['archive'] : ['download']),
       '--skip-existing',
       '-a',
       'en-US',
@@ -326,12 +326,13 @@ export const crunchy = async ({
       `${location}/{series_name}/Season {season_number}/{series_name}-S{season_number}E{episode_number}-{title}.mp4`,
       `${url}${range}`,
       // Add additional arguments
-      ...(rest ? rest : []),
+      ...(rest ? [rest] : []),
     ],
     { stdio: 'inherit' },
   )
 
   if (process.env.NODE_ENV === 'development') console.info(crunchyProcess)
+  console.info(crunchyProcess)
 
   await new Promise<void>((resolve, reject) => {
     crunchyProcess.on('close', (code) => {
@@ -374,7 +375,7 @@ export const iplayerDl = async ({
       '--file-prefix',
       '<nameshort>-S<seriesnum>E<episodenum>-<episodeshort>',
       // Add additional arguments
-      ...(rest ? rest : []),
+      ...(rest ? [rest] : []),
     ],
     { stdio: 'inherit' },
   )

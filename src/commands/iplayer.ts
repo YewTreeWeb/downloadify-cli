@@ -4,7 +4,7 @@ import { Args, Command, Flags } from '@oclif/core'
 import * as p from '@clack/prompts'
 import color from 'picocolors'
 import { checkDirExists, iplayerDl, newDir, ytdl } from '../utils/helper'
-import * as notifier from 'node-notifier'
+import notifier from 'node-notifier'
 
 export default class Iplayer extends Command {
   static description =
@@ -53,7 +53,12 @@ export default class Iplayer extends Command {
           let dirCreated = false
           // If directory doesn't exist create it
           // Else once directory is created, notify user
-          if (!dirExists) {
+          if (dirExists) {
+            dirCreated = !dirCreated
+            p.log.step(
+              `${color.bgGreen(color.black(` Found directory get_iplayer `))}`,
+            )
+          } else {
             p.log.step(
               `${color.bgRed(
                 color.white(`  Directory get_iplayer does not exist  `),
@@ -70,12 +75,8 @@ export default class Iplayer extends Command {
                 color.black(` Successfully created get_iplayer `),
               )}`,
             )
-          } else {
-            dirCreated = !dirCreated
-            p.log.step(
-              `${color.bgGreen(color.black(` Found directory get_iplayer `))}`,
-            )
           }
+
           return dirCreated
         },
         name: () => {
@@ -150,6 +151,7 @@ export default class Iplayer extends Command {
       outro('Download aborted! Thank you for using Downloadify.', 'abort')
       process.exit(1)
     }
+
     // Set download directory
     const dwnDir = path.join(os.homedir(), `Movies/get_iplayer`)
 
@@ -164,6 +166,7 @@ export default class Iplayer extends Command {
         })
         .join(' ')
     }
+
     if (iplayerOpts.otherOpts && String(iplayerOpts.otherOpts).length > 0) {
       const flags = String(iplayerOpts.otherOpts)
         .split(' ')
@@ -171,6 +174,7 @@ export default class Iplayer extends Command {
         .join(' ')
       rest += flags
     }
+
     let hasFailed: string | boolean = false
     let retry: string | boolean = false
 
@@ -221,7 +225,13 @@ export default class Iplayer extends Command {
       })
     }
 
-    if (!hasFailed) {
+    if (hasFailed) {
+      outro('An error occurred. Unable to download.', 'error')
+      notifier.notify({
+        title: 'Download Failed',
+        message: `An error occurred. Unable to download - ${hasFailed}`,
+      })
+    } else {
       outro(
         `${
           iplayerOpts.name
@@ -235,12 +245,6 @@ export default class Iplayer extends Command {
         message: `All downloads completed! Thank you for using Downloadify. Completed download${
           iplayerOpts.name ? `for ${iplayerOpts.name}` : ''
         }`,
-      })
-    } else {
-      outro('An error occurred. Unable to download.', 'error')
-      notifier.notify({
-        title: 'Download Failed',
-        message: `An error occurred. Unable to download - ${hasFailed}`,
       })
     }
   }
