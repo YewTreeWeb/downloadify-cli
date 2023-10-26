@@ -21,7 +21,7 @@
     "@clack/prompts": "^0.7.0",
     "@oclif/core": "^2",
     "@oclif/plugin-help": "^5",
-    "@oclif/plugin-plugins": "^3.4.0",
+    "@oclif/plugin-plugins": "^3.9.4",
     "dayjs": "^1.11.9",
     "node-notifier": "^10.0.1",
     "picocolors": "^1.0.0",
