@@ -297,6 +297,10 @@ export default class Iplayer extends Command {
 
     await iplayerDl(opts)
       .then(() => {
+        if (flags.quiet) {
+          sp.stop()
+        }
+
         outro(
           `${
             iplayerOpts.name
@@ -307,6 +311,10 @@ export default class Iplayer extends Command {
         )
       })
       .catch((error) => {
+        if (flags.quiet) {
+          sp.stop()
+        }
+
         if (process.env.NODE_ENV === 'development') console.error(error)
         p.select({
           message:
@@ -331,6 +339,14 @@ export default class Iplayer extends Command {
                 if (!value) return 'Please enter a URL'
               },
             }).then((data) => {
+              if (flags.quiet) {
+                sp.start(
+                  `Downloading${
+                    iplayerOpts.name ? ` ${iplayerOpts.name}` : ''
+                  }`,
+                )
+              }
+
               const newOpts = {
                 location: dwnDir,
                 url: String(data),
@@ -356,31 +372,23 @@ export default class Iplayer extends Command {
                   )
                 })
                 .catch((error) => {
+                  if (flags.quiet) {
+                    sp.stop()
+                  }
+
                   if (process.env.NODE_ENV === 'development')
                     console.error(error)
                   outro('An error occurred. Unable to download', 'error')
                 })
             })
           } else {
+            if (flags.quiet) {
+              sp.stop()
+            }
+
             outro('An error occurred. Unable to download.', 'error')
           }
         })
       })
-
-    if (flags.quiet) {
-      sp.stop()
-    }
-    // if (hasFailed) {
-    //   outro('An error occurred. Unable to download.', 'error')
-    // } else {
-    //   outro(
-    //     `${
-    //       iplayerOpts.name
-    //         ? `Completed download for ${iplayerOpts.name}.`
-    //         : 'All downloads completed!'
-    //     } Thank you for using Downloadify.`,
-    //     'success',
-    //   )
-    // }
   }
 }

@@ -298,9 +298,8 @@ export default class Hidive extends Command {
     // Else run youtube-dl
     if (hidiveOpts.cookie) {
       // Split the URL to get the name of the download
-      const splitUrl = args.url.split('stream/')
-      const splitLast = splitUrl[1].split('/')
-      const name = splitLast[0]
+      const splitUrl = args.url.split('stream/').at(-1) ?? ''
+      const name = splitUrl.split('/').at(0)
 
       // If the filter flag is passed check to see if valid
       let filter: string | string[] = flags.filter ?? ''
