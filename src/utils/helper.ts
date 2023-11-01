@@ -1,10 +1,10 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import shelljs from 'shelljs'
 import puppeteer from 'puppeteer'
 import dayjs from 'dayjs'
 import { spawn } from 'node:child_process'
+import * as useragent from 'useragent'
 
 // Always get the primary domain from a URL
 export const getPrimaryDomain = (url: string) => {
@@ -26,11 +26,12 @@ export const newDir = (name: string) => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir)
     }
+
     if (!fs.existsSync(cookiesDir)) {
       fs.mkdirSync(cookiesDir)
     }
-  } catch (err) {
-    console.error(err)
+  } catch (error) {
+    console.error(error)
   }
 }
 
@@ -85,7 +86,13 @@ export const deleteOldCookies = async (cookieDir: string, dirName: string) => {
     return `${cookieDir}/${file}.txt`
   })
 
-  if (otherCookieFiles.length > 0) shelljs.rm('-rf', existingCookies)
+  if (otherCookieFiles.length > 0) {
+    for (const file of existingCookies) {
+      fs.unlink(file, (error) => {
+        if (process.env.NODE_ENV === 'development') console.error(error)
+      })
+    }
+  }
 }
 
 // Fetch cookie
@@ -120,9 +127,10 @@ export const fetchCookie = async ({
   const navigationPromise = page.waitForNavigation({
     waitUntil: 'domcontentloaded',
   })
-  await page.setDefaultNavigationTimeout(120000)
+  await page.setDefaultNavigationTimeout(120_000)
   // Navigate to the login page
-  await page.goto(url, { waitUntil: 'load', timeout: 60000 }) // Replace with the login page URL
+  // Replace with the login page URL
+  await page.goto(url, { waitUntil: 'load', timeout: 60_000 })
   await page.setUserAgent(
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36',
   )
@@ -130,11 +138,13 @@ export const fetchCookie = async ({
   await page.type(user.el, user.name)
   await page.type(pass.el, pass.word)
   // Submit the login form
-  await page.click(button) // Replace with the login button selector
+  // Replace with the login button selector
+  await page.click(button)
   // Wait for site navigation to load
   await navigationPromise
   // Wait for a selector on the logged-in page to ensure successful login
-  await page.waitForSelector(selector, { timeout: 60000 }) // Replace with a selector on the logged-in page
+  // Replace with a selector on the logged-in page
+  await page.waitForSelector(selector, { timeout: 60_000 })
   // Get the cookies from the page
   const cookies = await page.cookies()
   // Convert the cookies to a Netscape-style cookie file format
@@ -146,42 +156,56 @@ export const fetchCookie = async ({
       cookie.expires * 1000,
     ).unix()}\t${cookie.name}\t${cookie.value}\n`
   }
+
   // Specify the path where you want to save the cookie file
   const cookieFilePath = `${cookieDir}/cookies-${formattedDate}.txt`
   // Write the cookies to the file in Netscape format
   fs.writeFileSync(
     cookieFilePath,
-    '# Netscape HTTP Cookie File\n' + cookieString,
-    'utf-8',
+    `# Netscape HTTP Cookie File\n${cookieString}`,
+    'utf8',
   )
   await browser.close()
 }
 
+const getUserAgent = () => {
+  const agent = useragent.parse(navigator.userAgent)
+  return agent.toString()
+}
+
 // youtude-dl downloader
 type YtdlOptions = {
-  location: string
-  season?: string | number | null
-  episode?: string | number | null
   cookieFile?: {
-    path?: string
     exists?: boolean
+    path?: string
   }
-  url: string
-  subs: boolean | string
+  episode?: null | number | string
   format?: boolean
+  lang?: boolean
+  location: string
+  rest?: null | string
   retry?: boolean
-  rest?: string | null
+  season?: null | number | string
+  subs: boolean | string
+  hardSubs?: boolean
+  title?: boolean
+  url: string
 }
 export const ytdl = async ({
-  location,
-  season,
-  episode,
   cookieFile,
-  url,
-  subs = false,
+  episode,
   format,
+  lang,
+  location,
   rest,
+  season,
+  subs = false,
+  hardSubs = false,
+  title,
+  url,
 }: YtdlOptions) => {
+  const userAgent =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'
   const formattedUrl = `${url}${season || ''}${episode || ''}`
   const subtitles =
     subs && subs === 'all'
@@ -199,6 +223,9 @@ export const ytdl = async ({
         '--cookies',
         String(cookieFile?.path),
       ]
+  const enLang = lang ? ['--match-filter', 'language=en-US'] : []
+  const enTitle = title ? ['--match-title', '(English Dub)'] : []
+
   const ytdlProcess = spawn(
     'yt-dlp',
     [
@@ -210,16 +237,26 @@ export const ytdl = async ({
       ...subtitles,
       ...(subs ? ['--embed-subs'] : []),
       '-o',
-      `${location}/%(series)s/%(season)s/%(?title)s.%(ext)s`,
-      `--user-agent`,
-      `Mozilla/5.0`,
+      `${location}/%(series)s/Season%(season_number)s/%(series)s-S%(season_number)sE%(episode_number)s-%(episode)s.%(ext)s`,
+      ...enLang,
+      ...enTitle,
+      '--ffmpeg-location',
+      '/usr/local/bin/ffmpeg',
       // Add additional arguments
       ...(rest ? [rest] : []),
+      `--user-agent`,
+      // Use the dynamically retrieved user agent
+      userAgent,
+      // Hard code the subtitles into the video
+      ...(hardSubs
+        ? ['--extractor-args', 'crunchyrollbeta:hardsub=en-US']
+        : []),
     ],
     { stdio: 'inherit' },
   )
 
   if (process.env.NODE_ENV === 'development') console.info(ytdlProcess)
+  console.info(ytdlProcess)
 
   await new Promise<void>((resolve, reject) => {
     ytdlProcess.on('close', (code) => {
@@ -289,28 +326,36 @@ export const hidiveDl = async ({
 }
 
 type CrunchyProps = {
-  location: string
-  username: string
-  password: string
-  url: string
   filter?: string
-  subs?: string | boolean
+  hardSubs?: boolean
+  location: string
+  password: string
+  quiet?: boolean
   rest?: string
+  subs?: boolean | string
+  url: string
+  username: string
+  verbose?: boolean
 }
 export const crunchy = async ({
-  location,
-  username,
-  password,
-  url,
   filter,
-  subs = true,
+  hardSubs = false,
+  location,
+  password,
+  quiet,
   rest,
+  subs = true,
+  url,
+  username,
+  verbose,
 }: CrunchyProps) => {
   const login = `${username}:${password}`
-  const range = filter && String(filter).length > 0 ? `\\[${filter}]` : ''
+  const range = filter && String(filter).length > 0 ? `[${filter}]` : ''
   const crunchyProcess = spawn(
     'crunchy-cli',
     [
+      ...(quiet ? ['--quiet'] : []),
+      ...(verbose ? ['--verbose'] : []),
       '--credentials',
       login,
       // If all available subs is passed change argument to archive
@@ -322,8 +367,11 @@ export const crunchy = async ({
       'best',
       // Add the '-s en-US' argument only if subs is true
       ...(subs && subs !== 'all' ? ['-s', 'en-US'] : []),
+      ...(hardSubs ? ['--force-hardsub'] : []),
       '-o',
-      `${location}/{series_name}/Season {season_number}/{series_name}-S{season_number}E{episode_number}-{title}.mp4`,
+      `${location}/{series_name}/Season {season_number}/{series_name}-S{season_number}E{episode_number}-{title}.${
+        subs === 'all' ? 'mkv' : 'mp4'
+      }`,
       `${url}${range}`,
       // Add additional arguments
       ...(rest ? [rest] : []),

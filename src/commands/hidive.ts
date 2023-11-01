@@ -1,3 +1,5 @@
+/* eslint-disable object-shorthand */
+/* eslint-disable perfectionist/sort-objects */
 /* eslint-disable complexity */
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -12,7 +14,6 @@ import {
   hidiveDl,
   newDir,
 } from '../utils/helper'
-import notifier from 'node-notifier'
 
 export default class Hidive extends Command {
   static description =
@@ -36,6 +37,12 @@ export default class Hidive extends Command {
     all_subs: Flags.boolean({
       char: 'a',
       description: 'Download all available subtitles',
+      required: false,
+    }),
+    quiet: Flags.boolean({
+      char: 'q',
+      description:
+        "Don't print the output of the downloading process to the terminal",
       required: false,
     }),
     verbose: Flags.boolean({
@@ -84,7 +91,14 @@ export default class Hidive extends Command {
           let dirCreated = false
           // If directory doesn't exist create it
           // Else once directory is created, notify user
-          if (!dirExists) {
+          if (dirExists) {
+            dirCreated = !dirCreated
+            p.log.step(
+              `${color.bgGreen(
+                color.black(` Found directory ${String(results.dir)} `),
+              )}`,
+            )
+          } else {
             p.log.step(
               `${color.bgRed(
                 color.white(
@@ -103,13 +117,6 @@ export default class Hidive extends Command {
                 color.black(` Successfully created ${String(results.dir)} `),
               )}`,
             )
-          } else {
-            dirCreated = !dirCreated
-            p.log.step(
-              `${color.bgGreen(
-                color.black(` Found directory ${String(results.dir)} `),
-              )}`,
-            )
           }
 
           return dirCreated
@@ -124,27 +131,6 @@ export default class Hidive extends Command {
               { value: 'false', label: 'No' },
             ],
           }),
-        username: async ({ results }) => {
-          if (results.cookie === 'true') return
-          return p.text({
-            message: 'Please enter your username for HiDive?',
-            placeholder: 'User',
-            validate: (value) => {
-              if (!value) return 'Please enter a username'
-            },
-          })
-        },
-        password: async ({ results }) => {
-          if (results.cookie === 'true') return
-          return p.password({
-            message: 'Please enter your password for HiDive?',
-            validate: (value) => {
-              if (!value) return 'Please enter a password'
-              if (value.length <= 10)
-                return 'Password must be more than 10 characters'
-            },
-          })
-        },
         hasCookie: async ({ results }) => {
           let cookie = false
           const cookieDir = path.join(
@@ -175,33 +161,38 @@ export default class Hidive extends Command {
           // Move cookie file from Downloads
           // rename file to have date
           sp.start('fetching cookie')
+
           const hasDownloadedCookie = await checkFileExists(downloadedCookie)
           if (hasDownloadedCookie) {
             fs.rename(downloadedCookie, formattedCookieFile, (err) => {
               if (process.env.NODE_ENV === 'development') console.error(err)
             })
           }
+
           sp.stop()
 
-          const cookieCheck = await checkFileExists(formattedCookieFile)
-          if (!cookieCheck) {
-            // If no cookie file found
-            p.log.step(
-              `${color.bgRed(
-                color.black(
-                  ` Failed to find an up to date cookie file in the ${String(
-                    results.dir,
-                  )} directory `,
-                ),
-              )}`,
-            )
-          } else {
+          const cookieCheck =
+            (await checkFileExists(formattedCookieFile)) ||
+            (await checkFileExists(downloadedCookie))
+
+          if (cookieCheck) {
             // If cookie file found
             cookie = !cookie
             p.log.step(
               `${color.bgGreen(
                 color.black(
                   ` Success an up to date cookie file was found in the ${String(
+                    results.dir,
+                  )} directory `,
+                ),
+              )}`,
+            )
+          } else {
+            // If no cookie file found
+            p.log.step(
+              `${color.bgRed(
+                color.black(
+                  ` Failed to find an up to date cookie file in the ${String(
                     results.dir,
                   )} directory `,
                 ),
@@ -221,7 +212,7 @@ export default class Hidive extends Command {
                 return 'Season number must be a positive number'
             },
           }),
-        episodeNum: ({ results }) => {
+        episodeNum: () => {
           if (flags.filter) return
           return p.text({
             message: flags.season
@@ -344,24 +335,32 @@ export default class Hidive extends Command {
         filter = flags.filter ? flags?.filter.split('-') : ''
       }
 
-      let hasFailed: string | boolean = false
+      let hasFailed: boolean | string = false
 
       // Add arguments to the rest param
       let rest = null
       if (Object.keys(flags).length > 0) {
+        const dismiss = new Set(['all_subs', 'filter'])
         rest = Object.keys(flags)
-          .map((key) =>
-            key !== 'all_subs' && key !== 'filter' ? `--${key}` : '',
-          )
+          .map((key) => (dismiss.has(key) ? '' : `--${key}`))
           .join(' ')
       }
 
       if (hidiveOpts.otherOpts && String(hidiveOpts.otherOpts).length > 0) {
-        const flags = String(hidiveOpts.otherOpts)
+        const emptyRest = rest
+        const moreOpts = String(hidiveOpts.otherOpts).trim()
+        const flags = moreOpts
           .split(' ')
-          .map((flag) => (flag.startsWith('--') ? flag : `--${flag}`))
+          .map((flag) => {
+            let formattedFlag = flag.startsWith('--') ? flag : `--${flag}`
+            if (formattedFlag.includes('_')) {
+              formattedFlag = formattedFlag.split('_').join(' ')
+            }
+
+            return formattedFlag
+          })
           .join(' ')
-        rest += flags
+        rest = emptyRest ? `${rest} ${flags}` : flags
       }
 
       const url = args.url.includes(baseUrl)
@@ -391,10 +390,18 @@ export default class Hidive extends Command {
           rest,
         }),
       }
+      if (flags.quiet) {
+        sp.start(`Downloading ${name}`)
+      }
+
       await hidiveDl(opts).catch((error) => {
         if (process.env.NODE_ENV === 'development') console.error(error)
         hasFailed = error.message
       })
+
+      if (flags.quiet) {
+        sp.stop()
+      }
 
       if (hasFailed) {
         outro(
@@ -403,10 +410,6 @@ export default class Hidive extends Command {
           )}`,
           'error',
         )
-        notifier.notify({
-          title: 'Download Failed',
-          message: `An error occurred. Unable to download - ${hasFailed}`,
-        })
       } else {
         outro(
           `All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
@@ -414,10 +417,6 @@ export default class Hidive extends Command {
           )}`,
           'success',
         )
-        notifier.notify({
-          title: 'Download Failed',
-          message: `All downloads completed! Thank you for using Downloadify. Completed download - ${name}`,
-        })
       }
     } else {
       outro(

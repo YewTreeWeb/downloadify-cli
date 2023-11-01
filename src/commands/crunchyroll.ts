@@ -1,9 +1,10 @@
+/* eslint-disable perfectionist/sort-objects */
+/* eslint-disable object-shorthand */
 import * as p from '@clack/prompts'
 import { Args, Command, Flags } from '@oclif/core'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import notifier from 'node-notifier'
 import color from 'picocolors'
 
 import {
@@ -32,6 +33,12 @@ export default class Crunchyroll extends Command {
     filter: Flags.string({
       char: 'f',
       description: 'Download a range of episodes e.g. S1-S3,S4E2-S4E6',
+      required: false,
+    }),
+    quiet: Flags.boolean({
+      char: 'q',
+      description:
+        "Don't print the output of the downloading process to the terminal",
       required: false,
     }),
     verbose: Flags.boolean({
@@ -127,25 +134,6 @@ export default class Crunchyroll extends Command {
               { value: 'skip', label: 'Skip' },
             ],
           }),
-        username: async () => {
-          return p.text({
-            message: 'Please enter your username for Crunchyroll?',
-            placeholder: 'User',
-            validate: (value) => {
-              if (!value) return 'Please enter a username'
-            },
-          })
-        },
-        password: async () => {
-          return p.password({
-            message: 'Please enter your password for Crunchyroll?',
-            validate: (value) => {
-              if (!value) return 'Please enter a password'
-              if (value.length <= 10)
-                return 'Password must be more than 10 characters'
-            },
-          })
-        },
         hasCookie: async ({ results }) => {
           if (results.cookie === 'skip') return
           let cookie = false
@@ -182,7 +170,9 @@ export default class Crunchyroll extends Command {
             })
           sp.stop()
 
-          const cookieCheck = await checkFileExists(formattedCookieFile)
+          const cookieCheck =
+            (await checkFileExists(formattedCookieFile)) ||
+            (await checkFileExists(downloadedCookie))
 
           if (cookieCheck) {
             // If cookie file found
@@ -211,11 +201,45 @@ export default class Crunchyroll extends Command {
 
           return cookie
         },
+        username: () =>
+          p.text({
+            message: 'Please enter your username for Crunchyroll?',
+            placeholder: 'User',
+            validate: (value) => {
+              if (!value) return 'Please enter a username'
+            },
+          }),
+        password: () =>
+          p.password({
+            message: 'Please enter your password for Crunchyroll?',
+            validate: (value) => {
+              if (!value) return 'Please enter a password'
+              if (value.length <= 10)
+                return 'Password must be more than 10 characters'
+            },
+          }),
         subtitles: async () => {
           if (flags.all_subs) return
           return p.select({
             message: 'Would you like to download subtitles?',
             initialValue: 'true',
+            maxItems: 2,
+            options: [
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
+            ],
+          })
+        },
+        hardSubs: async ({ results }) => {
+          if (
+            flags.default ||
+            results.subtitles === 'false' ||
+            !args.url.includes('crunchyroll')
+          )
+            return
+          return p.select({
+            message: 'Would you like the subtitles to be hard coded?',
+            initialValue: 'false',
             maxItems: 2,
             options: [
               { value: 'true', label: 'Yes' },
@@ -268,6 +292,18 @@ export default class Crunchyroll extends Command {
 
     // Download from Crunchyroll
     let filter = flags.filter
+    if (flags.all_subs) {
+      p.log.step('Filter cannot be used with the all subtitles flag.')
+      const proceedAS = await p.confirm({
+        message: 'Would you like to continue without a filter?',
+        initialValue: true,
+      })
+      if (!proceedAS) {
+        outro('Download aborted! Thank you for using Downloadify.', 'abort')
+        process.exit(1)
+      }
+    }
+
     if (
       flags.filter &&
       flags.filter?.length > 1 &&
@@ -303,20 +339,14 @@ export default class Crunchyroll extends Command {
     }
 
     // Get the name of the video
-    const splitPath = args.url.split('/')
-    const words = splitPath[1].split('-')
-    const dwnName = words[0].toUpperCase() + words.slice(1)
-
-    let hasFailed: boolean | string = false
-    let retry: string | boolean = false
+    const dwnName = args.url.split('/').at(-1) ?? ''
 
     // Add arguments to the rest param
-    let rest: string | null = null
+    let rest: null | string = null
     if (Object.keys(flags).length > 0) {
+      const dismiss = new Set(['all_subs', 'filter', 'quiet', 'verbose'])
       rest = Object.keys(flags)
-        .map((key) =>
-          key !== 'all_subs' && key !== 'filter' ? `--${key}` : '',
-        )
+        .map((key) => (dismiss.has(key) ? '' : `--${key}`))
         .join(' ')
     }
 
@@ -326,17 +356,44 @@ export default class Crunchyroll extends Command {
       username: String(crunchyOpts.username),
       password: String(crunchyOpts.password),
       subs: flags.all_subs ? 'all' : crunchyOpts.subtitles === 'true',
-      ...(flags.filter && {
-        filter,
-      }),
+      hardSubs: crunchyOpts.hardSubs === 'true',
+      ...(flags.filter &&
+        !flags.all_subs && {
+          filter,
+        }),
       ...(rest && {
         rest,
       }),
+      ...(flags.quiet && {
+        quiet: flags.quiet,
+      }),
+      ...(flags.verbose && {
+        verbose: flags.verbose,
+      }),
+    }
+    if (flags.quiet) {
+      sp.start(`Downloading ${dwnName}`)
     }
 
-    await crunchy(opts).catch((error) => {
-      if (process.env.NODE_ENV === 'development') console.error(error)
-      retry = String(
+    await crunchy(opts)
+      .then(() => {
+        if (flags.quiet) {
+          sp.stop()
+        }
+
+        outro(
+          `All downloads completed! Thank you for using Downloadify. Completed downloading - ${color.underline(
+            color.black(dwnName),
+          )}`,
+          'success',
+        )
+      })
+      .catch((error) => {
+        if (flags.quiet) {
+          sp.stop()
+        }
+
+        if (process.env.NODE_ENV === 'development') console.error(error)
         p.select({
           message: `Crunchyroll CLI failed to download ${dwnName}. Would you like to retry with yt-dlp?`,
           initialValue: 'yes',
@@ -344,57 +401,77 @@ export default class Crunchyroll extends Command {
             { value: 'true', label: 'Yes' },
             { value: 'false', label: 'No' },
           ],
-        }),
-      )
-      if (retry === 'false') {
-        hasFailed = error.message
-      }
-    })
+        }).then((res) => {
+          if (flags.quiet) {
+            sp.start(`Downloading ${dwnName}`)
+          }
 
-    if (String(retry) === 'true') {
-      const newOpts = {
-        location: dwnDir,
-        url: args.url,
-        cookieFile: {
-          path: path.join(
-            os.homedir(),
-            `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
-          ),
-          exists: crunchyOpts.cookie === 'true',
-        },
-        format: true,
-        subs: flags.all_subs ? 'all' : crunchyOpts.subtitles === 'true',
-      }
-      await ytdl(newOpts).catch((error) => {
-        if (process.env.NODE_ENV === 'development') console.error(error)
-        hasFailed = error.message
-      })
-    }
+          if (Object.keys(flags).length > 0) {
+            const flags = new Set(['quiet', 'verbose'])
+            rest = Object.keys(flags)
+              .map((key) => (flags.has(key) ? `--${key}` : ''))
+              .join(' ')
+          }
 
-    if (hasFailed) {
-      outro(
-        `An error occurred. Unable to download - ${color.underline(
-          color.white(dwnName),
-        )}`,
-        'error',
-      )
-      notifier.notify({
-        title: 'Download Failed',
-        message: `An error occurred. Unable to download - ${hasFailed}`,
+          if (res === 'true') {
+            const newOpts = {
+              location: dwnDir,
+              url: args.url,
+              cookieFile: {
+                path: path.join(
+                  os.homedir(),
+                  `Movies/${String(
+                    dirName,
+                  )}/cookies/cookies-${formattedDate}.txt`,
+                ),
+                exists: crunchyOpts.cookie === 'true',
+              },
+              subs: flags.all_subs ? 'all' : crunchyOpts.subtitles === 'true',
+              hardSubs: crunchyOpts.hardSubs === 'true',
+              lang: true,
+              ...(rest && {
+                rest,
+              }),
+            }
+            ytdl(newOpts)
+              .then(() => {
+                if (flags.quiet) {
+                  sp.stop()
+                }
+
+                outro(
+                  `All downloads completed! Thank you for using Downloadify. Completed downloading - ${color.underline(
+                    color.black(dwnName),
+                  )}`,
+                  'success',
+                )
+              })
+              .catch((error) => {
+                if (flags.quiet) {
+                  sp.stop()
+                }
+
+                if (process.env.NODE_ENV === 'development') console.error(error)
+                outro(
+                  `An error occurred. Unable to download - ${color.underline(
+                    color.white(dwnName),
+                  )}`,
+                  'error',
+                )
+              })
+          } else {
+            if (flags.quiet) {
+              sp.stop()
+            }
+
+            outro(
+              `An error occurred. Unable to download - ${color.underline(
+                color.white(dwnName),
+              )}`,
+              'error',
+            )
+          }
+        })
       })
-    } else {
-      outro(
-        `All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
-          color.black(dwnName),
-        )}`,
-        'success',
-      )
-      notifier.notify({
-        title: 'Download Successful',
-        message: `All downloads completed! Thank you for using Downloadify. Completed download - ${color.underline(
-          color.black(dwnName),
-        )}`,
-      })
-    }
   }
 }

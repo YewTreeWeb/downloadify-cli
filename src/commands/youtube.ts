@@ -5,7 +5,6 @@ import { Args, Command, Flags } from '@oclif/core'
 import * as p from '@clack/prompts'
 import color from 'picocolors'
 import { checkDirExists, newDir, ytdl } from '../utils/helper'
-import notifier from 'node-notifier'
 
 export default class Youtube extends Command {
   static description =
@@ -16,21 +15,27 @@ export default class Youtube extends Command {
   ]
 
   static flags = {
+    default: Flags.boolean({
+      char: 'd',
+      description:
+        'Skip the majority of the choices and use predefined settings.',
+      required: false,
+    }),
     playlist: Flags.boolean({
       char: 'p',
       description:
         'Download the playlist, if the URL refers to a video and a playlist',
       required: false,
     }),
+    quiet: Flags.boolean({
+      char: 'q',
+      description:
+        "Don't print the output of the downloading process to the terminal",
+      required: false,
+    }),
     verbose: Flags.boolean({
       char: 'v',
       description: 'If you want to include debug information in the output',
-      required: false,
-    }),
-    default: Flags.boolean({
-      char: 'd',
-      description:
-        'Skip the majority of the choices and use predefined settings.',
       required: false,
     }),
   }
@@ -212,26 +217,26 @@ export default class Youtube extends Command {
         rest,
       }),
     }
+    if (flags.quiet) {
+      sp.start('Downloading')
+    }
+
     await ytdl(opts).catch((error) => {
       if (process.env.NODE_ENV === 'development') console.error(error)
       hasFailed = error.message
     })
 
+    if (flags.quiet) {
+      sp.stop()
+    }
+
     if (hasFailed) {
       outro('An error occurred. Unable to download.', 'error')
-      notifier.notify({
-        title: 'Download Failed',
-        message: `An error occurred. Unable to download - ${hasFailed}`,
-      })
     } else {
       outro(
         'All downloads completed! Thank you for using Downloadify.',
         'success',
       )
-      notifier.notify({
-        title: 'Download Successful',
-        message: `All downloads completed! Thank you for using Downloadify. Completed download`,
-      })
     }
   }
 }
