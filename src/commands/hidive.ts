@@ -124,7 +124,7 @@ export default class Hidive extends Command {
         cookie: () =>
           p.select({
             message: 'Have you already downloaded a HiDive cookie file?',
-            initialValue: 'No',
+            initialValue: 'false',
             maxItems: 2,
             options: [
               { value: 'true', label: 'Yes' },
@@ -212,6 +212,30 @@ export default class Hidive extends Command {
                 return 'Season number must be a positive number'
             },
           }),
+        changeEpisodeStarter: ({ results }) => {
+          if (flags.filter || Number(results.seasonNum) <= 1) return
+          return p.select({
+            message:
+              "Would you like to change the season's starting episode numbers?",
+            initialValue: 'false',
+            maxItems: 2,
+            options: [
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
+            ],
+          })
+        },
+        episodeStarter: ({ results }) => {
+          if (flags.filter || Number(results.seasonNum) <= 1) return
+          return p.text({
+            message: 'Enter the new starting number e.g. 20',
+            validate: (value) => {
+              const regex = /^[1-9]\d*$/
+              if (!regex.test(value))
+                return 'Episode number must be a positive number'
+            },
+          })
+        },
         episodeNum: () => {
           if (flags.filter) return
           return p.text({
@@ -264,7 +288,7 @@ export default class Hidive extends Command {
       {
         onCancel: () => {
           p.cancel(color.bgCyan(color.black('  Download cancelled  ')))
-          process.exit(0)
+          this.exit(0)
         },
       },
     )
@@ -285,7 +309,7 @@ export default class Hidive extends Command {
     // If confirm is false
     if (!hidiveOpts.confirm) {
       outro('Download aborted! Thank you for using Downloadify.', 'abort')
-      process.exit(1)
+      this.exit(1)
     }
 
     // Ask where to download video
@@ -327,7 +351,7 @@ export default class Hidive extends Command {
         })
         if (!proceed) {
           outro('Download aborted! Thank you for using Downloadify.', 'abort')
-          process.exit(1)
+          this.exit(1)
         }
       } else {
         // Split the filter
@@ -339,7 +363,7 @@ export default class Hidive extends Command {
       // Add arguments to the rest param
       let rest = null
       if (Object.keys(flags).length > 0) {
-        const dismiss = new Set(['all_subs', 'filter'])
+        const dismiss = new Set(['all_subs', 'filter', 'season'])
         rest = Object.keys(flags)
           .map((key) => (dismiss.has(key) ? '' : `--${key}`))
           .join(' ')
@@ -374,6 +398,10 @@ export default class Hidive extends Command {
         },
         subs: flags.all_subs ? 'all' : hidiveOpts.subtitles === 'true',
         episode: Number(hidiveOpts.episodeNum) ?? 1,
+        ...(String(hidiveOpts.changeEpisodeStarter) &&
+          String(hidiveOpts.changeEpisodeStarter === 'true') && {
+            episodeStart: Number(hidiveOpts.episodeStarter),
+          }),
         cookieFile: {
           path: path.join(
             os.homedir(),
@@ -422,7 +450,7 @@ export default class Hidive extends Command {
         `Unable to download. Please add a valid and up-to-date cookies file to the ${dirName} directory.`,
         'error',
       )
-      process.exit(1)
+      this.exit(1)
     }
   }
 }

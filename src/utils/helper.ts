@@ -205,24 +205,24 @@ export const ytdl = async ({
   url,
 }: YtdlOptions) => {
   const userAgent =
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
   const formattedUrl = `${url}${season || ''}${episode || ''}`
   const subtitles =
     subs && subs === 'all'
       ? ['--sub-langs', 'all']
       : subs
-      ? ['--sub-langs', 'en.*']
-      : []
+        ? ['--sub-langs', 'en.*']
+        : []
   const cookies = cookieFile?.exists
     ? ['--cookies', String(cookieFile.path)]
     : cookieFile?.exists
-    ? []
-    : [
-        '--cookies-from-browser',
-        'chrome',
-        '--cookies',
-        String(cookieFile?.path),
-      ]
+      ? []
+      : [
+          '--cookies-from-browser',
+          'chrome',
+          '--cookies',
+          String(cookieFile?.path),
+        ]
   const enLang = lang ? ['--match-filter', 'language=en-US'] : []
   const enTitle = title ? ['--match-title', '(English Dub)'] : []
 
@@ -241,7 +241,7 @@ export const ytdl = async ({
       ...enLang,
       ...enTitle,
       '--ffmpeg-location',
-      '/usr/local/bin/ffmpeg',
+      '/opt/homebrew/bin/ffmpeg',
       // Add additional arguments
       ...(rest ? [rest] : []),
       `--user-agent`,
@@ -256,7 +256,6 @@ export const ytdl = async ({
   )
 
   if (process.env.NODE_ENV === 'development') console.info(ytdlProcess)
-  console.info(ytdlProcess)
 
   await new Promise<void>((resolve, reject) => {
     ytdlProcess.on('close', (code) => {
@@ -277,6 +276,7 @@ type HiDiveProps = {
     all?: boolean
   }
   episode: string | number
+  episodeStart?: string | number
   cookieFile?: {
     path?: string
     exists?: boolean
@@ -291,13 +291,14 @@ export const hidiveDl = async ({
   location,
   season,
   episode,
+  episodeStart,
   cookieFile,
   url,
   filter,
   subs = true,
   rest,
 }: HiDiveProps) => {
-  const seriesNum = `s${season.num.toString().padStart(2, '0')}`
+  const seriesNum = `/s${season.num.toString().padStart(2, '0')}`
   const eps = episode.toString().padStart(3, '0')
   const opts: YtdlOptions = {
     location,
@@ -307,12 +308,22 @@ export const hidiveDl = async ({
     url,
     subs,
     format: true,
-    rest,
+    ...(rest && {
+      rest,
+    }),
   }
 
   if (season.all || (filter && filter.length === 2)) {
-    const start = filter ? Number(filter[0]) : 1
-    const end = filter ? Number(filter[1]) : Number(episode)
+    const start = filter
+      ? Number(filter[0])
+      : episodeStart
+        ? Number(episodeStart)
+        : 1
+    const end = filter
+      ? Number(filter[1])
+      : episodeStart
+        ? Number(episodeStart) + Number(episode)
+        : Number(episode)
     for (let i = start; i < end; i++) {
       const ep = `e${i.toString().padStart(3, '0')}`
       opts.episode = ep

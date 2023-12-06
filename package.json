@@ -70,7 +70,7 @@
     }
   },
   "scripts": {
-    "build": "shx rm -rf dist && tsc -b",
+    "build": "shx rm -rf dist && tsc -b && npm link",
     "lint": "eslint . --ext .ts --config .eslintrc",
     "lint-staged": "lint-staged",
     "lint:fix": "next lint --fix",
