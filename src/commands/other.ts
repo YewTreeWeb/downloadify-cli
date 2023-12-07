@@ -1,32 +1,34 @@
+/* eslint-disable perfectionist/sort-objects */
 /* eslint-disable object-shorthand */
+import * as p from '@clack/prompts'
+import { Args, Command, Flags } from '@oclif/core'
+import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as fs from 'node:fs'
-import { Args, Command, Flags } from '@oclif/core'
-import * as p from '@clack/prompts'
 import color from 'picocolors'
+
 import {
-  checkFileExists,
   checkDirExists,
+  checkFileExists,
   deleteOldCookies,
   newDir,
   ytdl,
 } from '../utils/helper'
 
 export default class Other extends Command {
-  static description =
-    'Other command allows for videos to be download from multiple different websites by providing the URL.'
-
-  static examples = [
-    'downloadify other https://www.dailymotion.com/video/x8k1i6w',
-  ]
-
   static args = {
     url: Args.string({
       description: 'The URl of the videos you want to download',
       required: true,
     }),
   }
+
+  static description =
+    'Other command allows for videos to be download from multiple different websites by providing the URL.'
+
+  static examples = [
+    'downloadify other https://www.dailymotion.com/video/x8k1i6w',
+  ]
 
   static flags = {
     all_subs: Flags.boolean({
@@ -127,8 +129,8 @@ export default class Other extends Command {
         cookie: () => {
           if (flags.default) return
           return p.select({
-            message: 'Have you already downloaded a cookie file?',
             initialValue: 'true',
+            message: 'Have you already downloaded a cookie file?',
             maxItems: 3,
             options: [
               { value: 'true', label: 'Yes' },
@@ -326,7 +328,7 @@ export default class Other extends Command {
       {
         onCancel: () => {
           p.cancel(color.bgWhite(color.black('  Download cancelled  ')))
-          process.exit(0)
+          this.exit(0)
         },
       },
     )
@@ -348,7 +350,7 @@ export default class Other extends Command {
     // If confirm is false
     if (!otherOpts?.confirm) {
       outro('Download aborted! Thank you for using Downloadify.', 'abort')
-      process.exit(1)
+      this.exit(1)
     }
 
     // Ask where to download video
@@ -397,14 +399,14 @@ export default class Other extends Command {
         )} directory.`,
         'error',
       )
-      process.exit(1)
+      this.exit(1)
     } else {
       let hasFailed: boolean | string = false
 
       const opts = {
         location: dwnDir,
-        episode: Number(otherOpts?.episodeNum) ?? null,
-        season: Number(otherOpts?.seasonNum) ?? null,
+        episode: Number(otherOpts?.episodeNum) || null,
+        season: Number(otherOpts?.seasonNum) || null,
         ...(otherOpts.cookie !== 'skip' &&
           !flags.default && {
             cookieFile: {

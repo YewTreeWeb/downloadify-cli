@@ -156,7 +156,7 @@ export default class Youtube extends Command {
       {
         onCancel: () => {
           p.cancel(color.bgWhite(color.black('  Download cancelled  ')))
-          process.exit(0)
+          this.exit(0)
         },
       },
     )
@@ -178,7 +178,7 @@ export default class Youtube extends Command {
     // If confirm is false
     if (!ytOpts?.confirm) {
       outro('Download aborted! Thank you for using Downloadify.', 'abort')
-      process.exit(1)
+      this.exit(1)
     }
 
     // Ask where to download video

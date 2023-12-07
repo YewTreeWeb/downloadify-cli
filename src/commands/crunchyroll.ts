@@ -260,7 +260,7 @@ export default class Crunchyroll extends Command {
           p.cancel(
             color.bgYellow(color.black('  Crunchyroll download cancelled  ')),
           )
-          process.exit(0)
+          this.exit(0)
         },
       },
     )
@@ -282,7 +282,7 @@ export default class Crunchyroll extends Command {
     // If confirm is false
     if (!crunchyOpts.confirm) {
       outro('Download aborted! Thank you for using Downloadify.', 'abort')
-      process.exit(1)
+      this.exit(1)
     }
 
     // Ask where to download video
@@ -300,7 +300,7 @@ export default class Crunchyroll extends Command {
       })
       if (!proceedAS) {
         outro('Download aborted! Thank you for using Downloadify.', 'abort')
-        process.exit(1)
+        this.exit(1)
       }
     }
 
@@ -334,7 +334,7 @@ export default class Crunchyroll extends Command {
       })
       if (!proceed) {
         outro('Download aborted! Thank you for using Downloadify.', 'abort')
-        process.exit(1)
+        this.exit(1)
       }
     }
 

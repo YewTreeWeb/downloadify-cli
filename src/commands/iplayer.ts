@@ -220,7 +220,7 @@ export default class Iplayer extends Command {
       {
         onCancel: () => {
           p.cancel(color.bgMagenta(color.black('  Download cancelled  ')))
-          process.exit(0)
+          this.exit(0)
         },
       },
     )
@@ -241,7 +241,7 @@ export default class Iplayer extends Command {
     // If confirm is false
     if (!iplayerOpts.confirm) {
       outro('Download aborted! Thank you for using Downloadify.', 'abort')
-      process.exit(1)
+      this.exit(1)
     }
 
     // Set download directory

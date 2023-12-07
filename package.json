@@ -27,7 +27,7 @@
     "picocolors": "^1.0.0",
     "puppeteer": "^21.4.1",
     "store2": "^2.14.2",
-    "useragent": "^2.3.0"
+    "which": "^4.0.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.2.0",
@@ -38,6 +38,7 @@
     "@types/node": "^20.8.9",
     "@types/node-notifier": "^8.0.4",
     "@types/useragent": "^2.3.3",
+    "@types/which": "^3.0.3",
     "@typescript-eslint/eslint-plugin": "^6.9.0",
     "chai": "^4",
     "eslint": "^8.52.0",

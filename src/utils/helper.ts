@@ -1,10 +1,11 @@
+import dayjs from 'dayjs'
+import { spawn } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import * as util from 'node:util'
 import puppeteer from 'puppeteer'
-import dayjs from 'dayjs'
-import { spawn } from 'node:child_process'
-import * as useragent from 'useragent'
+import * as which from 'which'
 
 // Always get the primary domain from a URL
 export const getPrimaryDomain = (url: string) => {
@@ -168,9 +169,19 @@ export const fetchCookie = async ({
   await browser.close()
 }
 
-const getUserAgent = () => {
-  const agent = useragent.parse(navigator.userAgent)
-  return agent.toString()
+// Find the path location of ffmpeg
+const findFFmpegLocation = () => {
+  const defaultPath = '/opt/homebrew/bin/ffmpeg'
+  let path = ''
+  try {
+    const found = which.sync('ffmpeg', { nothrow: true })
+    path = found && found !== defaultPath ? found : defaultPath
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') console.error(error)
+    path = defaultPath
+  }
+
+  return path
 }
 
 // youtude-dl downloader
@@ -206,6 +217,8 @@ export const ytdl = async ({
 }: YtdlOptions) => {
   const userAgent =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+  // Get the location of ffmpeg
+  const ffmpegPath = findFFmpegLocation()
   const formattedUrl = `${url}${season || ''}${episode || ''}`
   const subtitles =
     subs && subs === 'all'
@@ -241,7 +254,7 @@ export const ytdl = async ({
       ...enLang,
       ...enTitle,
       '--ffmpeg-location',
-      '/opt/homebrew/bin/ffmpeg',
+      ffmpegPath,
       // Add additional arguments
       ...(rest ? [rest] : []),
       `--user-agent`,
