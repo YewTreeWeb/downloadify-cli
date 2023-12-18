@@ -1,6 +1,46 @@
 {
+  "root": true,
+  "env": {
+    "browser": true,
+    "node": true,
+    "es6": true
+  },
+  "plugins": ["@typescript-eslint"],
   "extends": [
     "oclif",
-    "oclif-typescript"
-  ]
+    "oclif-typescript",
+    "plugin:@typescript-eslint/recommended",
+    "prettier"
+  ],
+  "parserOptions": {
+    "ecmaFeatures": {
+      "jsx": true
+    }
+  },
+  "rules": {
+    "@typescript-eslint/no-unused-vars": "error",
+    "@typescript-eslint/no-explicit-any": "error",
+    "semi": ["error", "never"],
+    "prefer-template": "error",
+    "no-duplicate-imports": "error",
+    "default-case-last": "error",
+    "no-var": "error",
+    "no-empty-function": "error",
+    "no-inline-comments": "error",
+    "spaced-comment": "error",
+    "no-lonely-if": "error",
+    "no-useless-rename": "error",
+    "camelcase": ["error", { "properties": "never" }],
+    "unicorn/filename-case": [
+      "error",
+      {
+        "cases": {
+          "camelCase": true,
+          "pascalCase": true,
+          "kebabCase": true
+        }
+      }
+    ]
+  },
+  "ignorePatterns": ["node_modules/*", "commitlint.config.js"]
 }

@@ -27,9 +27,11 @@ USAGE
 <!-- usagestop -->
 # Commands
 <!-- commands -->
-* [`downloadify hello PERSON`](#downloadify-hello-person)
-* [`downloadify hello world`](#downloadify-hello-world)
+* [`downloadify crunchyroll URL`](#downloadify-crunchyroll-url)
 * [`downloadify help [COMMANDS]`](#downloadify-help-commands)
+* [`downloadify hidive URL`](#downloadify-hidive-url)
+* [`downloadify iplayer PID`](#downloadify-iplayer-pid)
+* [`downloadify other URL`](#downloadify-other-url)
 * [`downloadify plugins`](#downloadify-plugins)
 * [`downloadify plugins:install PLUGIN...`](#downloadify-pluginsinstall-plugin)
 * [`downloadify plugins:inspect PLUGIN...`](#downloadify-pluginsinspect-plugin)
@@ -39,48 +41,34 @@ USAGE
 * [`downloadify plugins:uninstall PLUGIN...`](#downloadify-pluginsuninstall-plugin-1)
 * [`downloadify plugins:uninstall PLUGIN...`](#downloadify-pluginsuninstall-plugin-2)
 * [`downloadify plugins update`](#downloadify-plugins-update)
+* [`downloadify youtube URL`](#downloadify-youtube-url)
 
-## `downloadify hello PERSON`
+## `downloadify crunchyroll URL`
 
-Say hello
+The crunchyroll command gives the user the ability to download videos from the Crunchyroll website.
 
 ```
 USAGE
-  $ downloadify hello PERSON -f <value>
+  $ downloadify crunchyroll URL [-a] [-f <value>] [-v] [-y]
 
 ARGUMENTS
-  PERSON  Person to say hello to
+  URL  The URL of the show you would like to download
 
 FLAGS
-  -f, --from=<value>  (required) Who is saying hello
+  -a, --all_subs        Download all available subtitles
+  -f, --filter=<value>  Download a range of episodes e.g. S1-S3,S4E2-S4E6
+  -v, --verbose         If you want to include debug information in the output
+  -y, --yes             Sometimes different seasons have the same season number, this flag suppresses this interactive
+                        prompt and just downloads all seasons
 
 DESCRIPTION
-  Say hello
+  The crunchyroll command gives the user the ability to download videos from the Crunchyroll website.
 
 EXAMPLES
-  $ oex hello friend --from oclif
-  hello friend from oclif! (./src/commands/hello/index.ts)
+  $ downloadify crunchyroll https://www.crunchyroll.com/series/GYEXQKJG6/dr-stone
 ```
 
-_See code: [dist/commands/hello/index.ts](https://github.com/YewTreeWeb/downloadify-cli/blob/v0.0.0/dist/commands/hello/index.ts)_
-
-## `downloadify hello world`
-
-Say hello world
-
-```
-USAGE
-  $ downloadify hello world
-
-DESCRIPTION
-  Say hello world
-
-EXAMPLES
-  $ downloadify hello world
-  hello world! (./src/commands/hello/world.ts)
-```
-
-_See code: [dist/commands/hello/world.ts](https://github.com/YewTreeWeb/downloadify-cli/blob/v0.0.0/dist/commands/hello/world.ts)_
+_See code: [src/commands/crunchyroll.ts](https://github.com/YewTreeWeb/downloadify-cli/blob/v0.0.0/src/commands/crunchyroll.ts)_
 
 ## `downloadify help [COMMANDS]`
 
@@ -100,7 +88,84 @@ DESCRIPTION
   Display help for downloadify.
 ```
 
-_See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v5.2.17/src/commands/help.ts)_
+_See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v6.0.4/src/commands/help.ts)_
+
+## `downloadify hidive URL`
+
+hidive commands gives the user the ability to download videos from the HiDive website
+
+```
+USAGE
+  $ downloadify hidive URL [-s] [-f <value>] [-a] [-v]
+
+ARGUMENTS
+  URL  The URl of the videos you want to download
+
+FLAGS
+  -a, --all_subs        Download all available subtitles
+  -f, --filter=<value>  Download a range of episodes e.g. 1-5
+  -s, --season          Would you like to download the entire season
+  -v, --verbose         If you want to include debug information in the output
+
+DESCRIPTION
+  hidive commands gives the user the ability to download videos from the HiDive website
+
+EXAMPLES
+  $ downloadify hidive https://www.hidive.com/stream/the-eminence-in-shadow
+```
+
+_See code: [src/commands/hidive.ts](https://github.com/YewTreeWeb/downloadify-cli/blob/v0.0.0/src/commands/hidive.ts)_
+
+## `downloadify iplayer PID`
+
+The iplayer command gives the user the ability to download videos from the iPlayer UK website by providing the PID of the show/episode.
+
+```
+USAGE
+  $ downloadify iplayer PID [-s] [-v] [-d]
+
+ARGUMENTS
+  PID  The PID of the videos you want to download. The BBC Programme Identifier can be found in the URL after "episode/"
+
+FLAGS
+  -d, --default  Skip the majority of the choices and use predefined settings.
+  -s, --season   Would you like to download the entire season
+  -v, --verbose  If you want to include debug information in the output
+
+DESCRIPTION
+  The iplayer command gives the user the ability to download videos from the iPlayer UK website by providing the PID of
+  the show/episode.
+
+EXAMPLES
+  $ downloadify iplayer m001rswk
+```
+
+_See code: [src/commands/iplayer.ts](https://github.com/YewTreeWeb/downloadify-cli/blob/v0.0.0/src/commands/iplayer.ts)_
+
+## `downloadify other URL`
+
+Other command allows for videos to be download from multiple different websites by providing the URL.
+
+```
+USAGE
+  $ downloadify other URL [-a] [-v] [-d]
+
+ARGUMENTS
+  URL  The URl of the videos you want to download
+
+FLAGS
+  -a, --all_subs  Download all available subtitles
+  -d, --default   Skip the majority of the choices and use predefined settings.
+  -v, --verbose   If you want to include debug information in the output
+
+DESCRIPTION
+  Other command allows for videos to be download from multiple different websites by providing the URL.
+
+EXAMPLES
+  $ downloadify other https://www.dailymotion.com/video/x8k1i6w
+```
+
+_See code: [src/commands/other.ts](https://github.com/YewTreeWeb/downloadify-cli/blob/v0.0.0/src/commands/other.ts)_
 
 ## `downloadify plugins`
 
@@ -123,7 +188,7 @@ EXAMPLES
   $ downloadify plugins
 ```
 
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v3.3.0/src/commands/plugins/index.ts)_
+_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v3.9.4/src/commands/plugins/index.ts)_
 
 ## `downloadify plugins:install PLUGIN...`
 
@@ -188,7 +253,7 @@ EXAMPLES
   $ downloadify plugins:inspect myplugin
 ```
 
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v3.3.0/src/commands/plugins/inspect.ts)_
+_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v3.9.4/src/commands/plugins/inspect.ts)_
 
 ## `downloadify plugins:install PLUGIN...`
 
@@ -228,7 +293,7 @@ EXAMPLES
   $ downloadify plugins:install someuser/someplugin
 ```
 
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v3.3.0/src/commands/plugins/install.ts)_
+_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v3.9.4/src/commands/plugins/install.ts)_
 
 ## `downloadify plugins:link PLUGIN`
 
@@ -242,8 +307,9 @@ ARGUMENTS
   PATH  [default: .] path to plugin
 
 FLAGS
-  -h, --help     Show CLI help.
+  -h, --help      Show CLI help.
   -v, --verbose
+  --[no-]install  Install dependencies after linking the plugin.
 
 DESCRIPTION
   Links a plugin into the CLI for development.
@@ -257,7 +323,7 @@ EXAMPLES
   $ downloadify plugins:link myplugin
 ```
 
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v3.3.0/src/commands/plugins/link.ts)_
+_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v3.9.4/src/commands/plugins/link.ts)_
 
 ## `downloadify plugins:uninstall PLUGIN...`
 
@@ -305,7 +371,7 @@ ALIASES
   $ downloadify plugins remove
 ```
 
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v3.3.0/src/commands/plugins/uninstall.ts)_
+_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v3.9.4/src/commands/plugins/uninstall.ts)_
 
 ## `downloadify plugins:uninstall PLUGIN...`
 
@@ -346,5 +412,30 @@ DESCRIPTION
   Update installed plugins.
 ```
 
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v3.3.0/src/commands/plugins/update.ts)_
+_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v3.9.4/src/commands/plugins/update.ts)_
+
+## `downloadify youtube URL`
+
+This command allows the user to download videos on YouTube
+
+```
+USAGE
+  $ downloadify youtube URL [-p] [-v] [-d]
+
+ARGUMENTS
+  URL  The URl of the videos you want to download
+
+FLAGS
+  -d, --default   Skip the majority of the choices and use predefined settings.
+  -p, --playlist  Download the playlist, if the URL refers to a video and a playlist
+  -v, --verbose   If you want to include debug information in the output
+
+DESCRIPTION
+  This command allows the user to download videos on YouTube
+
+EXAMPLES
+  $ downloadify youtube https://www.youtube.com/watch?v=XPo8Z3tzyH0
+```
+
+_See code: [src/commands/youtube.ts](https://github.com/YewTreeWeb/downloadify-cli/blob/v0.0.0/src/commands/youtube.ts)_
 <!-- commandsstop -->
