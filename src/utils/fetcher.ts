@@ -1,20 +1,25 @@
 import { spawn } from 'child_process'
 import which from 'which'
 
+type FormatProps = {
+  country?: string
+  id?: boolean
+  lang?: boolean | 'multi'
+  title?: boolean
+}
+
 type YtdlOptions = {
   cookieFile?: {
     exists?: boolean
     path?: string
   }
   episode?: null | number | string
-  format?: boolean
+  lang?: boolean | FormatProps
   hardSubs?: boolean
-  lang?: boolean
   location: string
   rest?: null | string
   season?: null | number | string
   subs: boolean | string
-  title?: boolean
   url: string
 }
 
@@ -36,14 +41,12 @@ const findFFmpegLocation = () => {
 const ytdl = async ({
   cookieFile,
   episode,
-  format,
   lang,
   location,
   rest,
   season,
   subs = false,
   hardSubs = false,
-  title,
   url,
 }: YtdlOptions) => {
   const userAgent =
@@ -52,12 +55,14 @@ const ytdl = async ({
   const ffmpegPath = findFFmpegLocation()
   // Format the URL, season and episode into one string
   const formattedUrl = `${url}${season || ''}${episode || ''}`
+  // Get all available subtitles or just English
   const subtitles =
     subs && subs === 'all'
       ? ['--sub-langs', 'all']
       : subs
       ? ['--sub-langs', 'en.*']
       : []
+  // Check if cookies exist or try to automatically download them
   const cookies = cookieFile?.exists
     ? ['--cookies', String(cookieFile.path)]
     : cookieFile?.exists
@@ -68,8 +73,24 @@ const ytdl = async ({
         '--cookies',
         String(cookieFile?.path),
       ]
-  const enLang = lang ? ['--match-filter', 'language=en-US'] : []
-  const enTitle = title ? ['--match-title', '(English Dub)'] : []
+  let language = lang ? ['--format', 'bv+ba[language*=en]'] : []
+  if (lang && typeof lang !== 'boolean') {
+    if (lang.title && (!lang.country || lang.country === 'en')) {
+      language = ['--match-title', '(English Dub)']
+    } else if (lang.id && (!lang.country || lang.country === 'en')) {
+      language = ['--format', 'best[format_id*=en]']
+    }
+
+    if (lang.lang === 'multi') {
+      language = [
+        '--format',
+        'bv*+mergeall[vcodec=none]',
+        '--audio-multistreams',
+      ]
+    } else if (lang.country !== 'en') {
+      language = ['--format', `bv+ba[language*=${lang.country}]`]
+    }
+  }
 
   const ytdlProcess = spawn(
     'yt-dlp',
@@ -78,13 +99,11 @@ const ytdl = async ({
       formattedUrl,
       '--referer',
       formattedUrl,
-      ...(format ? ['--format', 'best[format_id*=en]'] : []),
+      ...(lang ? ['--format', `${language}`] : []),
       ...subtitles,
       ...(subs ? ['--embed-subs'] : []),
       '-o',
       `${location}/%(series)s/Season%(season_number)s/%(series)s-S%(season_number)sE%(episode_number)s-%(episode)s.%(ext)s`,
-      ...enLang,
-      ...enTitle,
       '--ffmpeg-location',
       ffmpegPath,
       // Add additional arguments

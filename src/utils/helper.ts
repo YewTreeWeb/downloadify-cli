@@ -224,18 +224,18 @@ export const ytdl = async ({
     subs && subs === 'all'
       ? ['--sub-langs', 'all']
       : subs
-        ? ['--sub-langs', 'en.*']
-        : []
+      ? ['--sub-langs', 'en.*']
+      : []
   const cookies = cookieFile?.exists
     ? ['--cookies', String(cookieFile.path)]
     : cookieFile?.exists
-      ? []
-      : [
-          '--cookies-from-browser',
-          'chrome',
-          '--cookies',
-          String(cookieFile?.path),
-        ]
+    ? []
+    : [
+        '--cookies-from-browser',
+        'chrome',
+        '--cookies',
+        String(cookieFile?.path),
+      ]
   const enLang = lang ? ['--match-filter', 'language=en-US'] : []
   const enTitle = title ? ['--match-title', '(English Dub)'] : []
 
@@ -246,12 +246,17 @@ export const ytdl = async ({
       formattedUrl,
       '--referer',
       formattedUrl,
-      ...(format ? ['--format', 'best[format_id*=en]'] : []),
+      // ...(format ? ['--format', 'best[format_id*=en]'] : []),
+      ...(format
+        ? ['--format', 'best[format_id*=en]']
+        : lang
+        ? ['--format', 'bv+ba[language*=en]']
+        : []),
       ...subtitles,
       ...(subs ? ['--embed-subs'] : []),
       '-o',
       `${location}/%(series)s/Season%(season_number)s/%(series)s-S%(season_number)sE%(episode_number)s-%(episode)s.%(ext)s`,
-      ...enLang,
+      // ...enLang,
       ...enTitle,
       '--ffmpeg-location',
       ffmpegPath,
@@ -330,13 +335,13 @@ export const hidiveDl = async ({
     const start = filter
       ? Number(filter[0])
       : episodeStart
-        ? Number(episodeStart)
-        : 1
+      ? Number(episodeStart)
+      : 1
     const end = filter
       ? Number(filter[1])
       : episodeStart
-        ? Number(episodeStart) + Number(episode)
-        : Number(episode)
+      ? Number(episodeStart) + Number(episode)
+      : Number(episode)
     for (let i = start; i < end; i++) {
       const ep = `e${i.toString().padStart(3, '0')}`
       opts.episode = ep
