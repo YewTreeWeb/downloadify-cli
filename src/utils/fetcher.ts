@@ -1,5 +1,12 @@
-import { spawn } from 'child_process'
-import which from 'which'
+/* eslint-disable complexity */
+import { spawn } from 'node:child_process'
+import { sync } from 'which'
+
+type LanguageProps = {
+  custom?: string
+  forceEn?: boolean
+  type: 'id' | 'language' | 'title'
+}
 
 type YtdlOptions = {
   cookieFile?: {
@@ -7,14 +14,12 @@ type YtdlOptions = {
     path?: string
   }
   episode?: null | number | string
-  format?: boolean
+  format?: LanguageProps | boolean
   hardSubs?: boolean
-  lang?: boolean
   location: string
   rest?: null | string
   season?: null | number | string
   subs: boolean | string
-  title?: boolean
   url: string
 }
 
@@ -23,7 +28,7 @@ const findFFmpegLocation = () => {
   const defaultPath = '/opt/homebrew/bin/ffmpeg'
   let path = ''
   try {
-    const found = which.sync('ffmpeg', { nothrow: true })
+    const found = sync('ffmpeg', { nothrow: true })
     path = found && found !== defaultPath ? found : defaultPath
   } catch (error) {
     if (process.env.NODE_ENV === 'development') console.error(error)
@@ -37,13 +42,11 @@ const ytdl = async ({
   cookieFile,
   episode,
   format,
-  lang,
+  hardSubs = false,
   location,
   rest,
   season,
   subs = false,
-  hardSubs = false,
-  title,
   url,
 }: YtdlOptions) => {
   const userAgent =
@@ -56,20 +59,48 @@ const ytdl = async ({
     subs && subs === 'all'
       ? ['--sub-langs', 'all']
       : subs
-      ? ['--sub-langs', 'en.*']
-      : []
+        ? ['--sub-langs', 'en.*']
+        : []
   const cookies = cookieFile?.exists
     ? ['--cookies', String(cookieFile.path)]
     : cookieFile?.exists
-    ? []
-    : [
-        '--cookies-from-browser',
-        'chrome',
-        '--cookies',
-        String(cookieFile?.path),
-      ]
-  const enLang = lang ? ['--match-filter', 'language=en-US'] : []
-  const enTitle = title ? ['--match-title', '(English Dub)'] : []
+      ? []
+      : [
+          '--cookies-from-browser',
+          'chrome',
+          '--cookies',
+          String(cookieFile?.path),
+        ]
+
+  // Set format
+  const formatType =
+    typeof format === 'object' && format.type === 'title'
+      ? '--match-title'
+      : '--format'
+  let lang = format ? 'bv+ba[language*=en]' : ''
+  if (format && typeof format === 'object') {
+    switch (format.type) {
+      case 'id': {
+        lang = `best[format_id*=${format.forceEn ? 'en' : format.custom}]`
+        break
+      }
+
+      case 'title': {
+        lang = `${format.forceEn ? '(English Dub)' : format.custom}`
+        break
+      }
+
+      case 'language': {
+        lang = format.forceEn
+          ? 'bv+ba[language*=en]'
+          : format.custom === 'multi'
+            ? 'bv*+mergeall[vcodec=none]'
+            : `bv+ba[language*=${format.custom}]`
+
+        break
+      }
+    }
+  }
 
   const ytdlProcess = spawn(
     'yt-dlp',
@@ -78,13 +109,14 @@ const ytdl = async ({
       formattedUrl,
       '--referer',
       formattedUrl,
-      ...(format ? ['--format', 'best[format_id*=en]'] : []),
+      ...(format ? [formatType, lang] : []),
       ...subtitles,
       ...(subs ? ['--embed-subs'] : []),
       '-o',
       `${location}/%(series)s/Season%(season_number)s/%(series)s-S%(season_number)sE%(episode_number)s-%(episode)s.%(ext)s`,
-      ...enLang,
-      ...enTitle,
+      ...(typeof format === 'object' && format.custom === 'multi'
+        ? '--audio-multistreams'
+        : []),
       '--ffmpeg-location',
       ffmpegPath,
       // Add additional arguments

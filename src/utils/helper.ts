@@ -246,7 +246,7 @@ export const ytdl = async ({
       formattedUrl,
       '--referer',
       formattedUrl,
-      ...(format ? ['--format', 'best[format_id*=en]'] : []),
+      ...(format ? ['--format', 'bv+ba[language*=en]'] : []),
       ...subtitles,
       ...(subs ? ['--embed-subs'] : []),
       '-o',
