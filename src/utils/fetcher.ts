@@ -1,11 +1,11 @@
-import { spawn } from 'child_process'
-import which from 'which'
+/* eslint-disable complexity */
+import { spawn } from 'node:child_process'
+import { sync } from 'which'
 
-type FormatProps = {
-  country?: string
-  id?: boolean
-  lang?: boolean | 'multi'
-  title?: boolean
+type LanguageProps = {
+  custom?: string
+  forceEn?: boolean
+  type: 'id' | 'language' | 'title'
 }
 
 type YtdlOptions = {
@@ -14,13 +14,15 @@ type YtdlOptions = {
     path?: string
   }
   episode?: null | number | string
-  lang?: boolean | FormatProps
+  format?: LanguageProps | boolean
   hardSubs?: boolean
   location: string
+  quiet?: boolean
   rest?: null | string
   season?: null | number | string
   subs: boolean | string
   url: string
+  verbose?: boolean
 }
 
 // Find the path location of ffmpeg
@@ -28,7 +30,7 @@ const findFFmpegLocation = () => {
   const defaultPath = '/opt/homebrew/bin/ffmpeg'
   let path = ''
   try {
-    const found = which.sync('ffmpeg', { nothrow: true })
+    const found = sync('ffmpeg', { nothrow: true })
     path = found && found !== defaultPath ? found : defaultPath
   } catch (error) {
     if (process.env.NODE_ENV === 'development') console.error(error)
@@ -41,13 +43,15 @@ const findFFmpegLocation = () => {
 const ytdl = async ({
   cookieFile,
   episode,
-  lang,
+  format,
+  hardSubs = false,
   location,
+  quiet,
   rest,
   season,
   subs = false,
-  hardSubs = false,
   url,
+  verbose,
 }: YtdlOptions) => {
   const userAgent =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
@@ -55,40 +59,50 @@ const ytdl = async ({
   const ffmpegPath = findFFmpegLocation()
   // Format the URL, season and episode into one string
   const formattedUrl = `${url}${season || ''}${episode || ''}`
-  // Get all available subtitles or just English
   const subtitles =
     subs && subs === 'all'
       ? ['--sub-langs', 'all']
       : subs
-      ? ['--sub-langs', 'en.*']
-      : []
-  // Check if cookies exist or try to automatically download them
+        ? ['--sub-langs', 'en.*']
+        : []
   const cookies = cookieFile?.exists
     ? ['--cookies', String(cookieFile.path)]
     : cookieFile?.exists
-    ? []
-    : [
-        '--cookies-from-browser',
-        'chrome',
-        '--cookies',
-        String(cookieFile?.path),
-      ]
-  let language = lang ? ['--format', 'bv+ba[language*=en]'] : []
-  if (lang && typeof lang !== 'boolean') {
-    if (lang.title && (!lang.country || lang.country === 'en')) {
-      language = ['--match-title', '(English Dub)']
-    } else if (lang.id && (!lang.country || lang.country === 'en')) {
-      language = ['--format', 'best[format_id*=en]']
-    }
+      ? []
+      : [
+          '--cookies-from-browser',
+          'chrome',
+          '--cookies',
+          String(cookieFile?.path),
+        ]
 
-    if (lang.lang === 'multi') {
-      language = [
-        '--format',
-        'bv*+mergeall[vcodec=none]',
-        '--audio-multistreams',
-      ]
-    } else if (lang.country !== 'en') {
-      language = ['--format', `bv+ba[language*=${lang.country}]`]
+  // Set format
+  const formatType =
+    typeof format === 'object' && format.type === 'title'
+      ? '--match-title'
+      : '--format'
+  let lang = format ? 'bv+ba[language*=en]' : ''
+  if (format && typeof format === 'object') {
+    switch (format.type) {
+      case 'id': {
+        lang = `best[format_id*=${format.forceEn ? 'en' : format.custom}]`
+        break
+      }
+
+      case 'title': {
+        lang = `${format.forceEn ? '(English Dub)' : format.custom}`
+        break
+      }
+
+      case 'language': {
+        lang = format.forceEn
+          ? 'bv+ba[language*=en]'
+          : format.custom === 'multi'
+            ? 'bv*+mergeall[vcodec=none]'
+            : `bv+ba[language*=${format.custom}]`
+
+        break
+      }
     }
   }
 
@@ -99,11 +113,14 @@ const ytdl = async ({
       formattedUrl,
       '--referer',
       formattedUrl,
-      ...(lang ? ['--format', `${language}`] : []),
+      ...(format ? [formatType, lang] : []),
       ...subtitles,
       ...(subs ? ['--embed-subs'] : []),
       '-o',
       `${location}/%(series)s/Season%(season_number)s/%(series)s-S%(season_number)sE%(episode_number)s-%(episode)s.%(ext)s`,
+      ...(typeof format === 'object' && format.custom === 'multi'
+        ? '--audio-multistreams'
+        : []),
       '--ffmpeg-location',
       ffmpegPath,
       // Add additional arguments
@@ -115,6 +132,10 @@ const ytdl = async ({
       ...(hardSubs
         ? ['--extractor-args', 'crunchyrollbeta:hardsub=en-US']
         : []),
+      // Enable quiet mode
+      ...(quiet && !verbose ? ['--quiet', '--no-warnings', '--progress'] : []),
+      // Enable verbose output
+      ...(verbose ? ['--verbose'] : []),
     ],
     { stdio: 'inherit' },
   )
