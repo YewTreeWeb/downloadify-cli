@@ -5,13 +5,10 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import color from 'picocolors'
 
+import { checkDirExists, checkFileExists } from '../utils/check'
+import createDir from '../utils/createDir'
+import deleteOldCookies from '../utils/deleteCookie'
 import ytdl from '../utils/fetcher'
-import {
-  checkDirExists,
-  checkFileExists,
-  deleteOldCookies,
-  newDir,
-} from '../utils/helper'
 import outro from '../utils/outro'
 
 export default class Crunchyroll extends Command {
@@ -73,7 +70,7 @@ export default class Crunchyroll extends Command {
 
     console.clear()
     if (process.env.NODE_ENV === 'development')
-      p.intro(`${color.bgGreen(color.black(' Dev Mode Active '))}`)
+      p.intro(`${color.bgGreen(color.white(' Dev Mode Active '))}`)
 
     p.intro(`${color.bgMagenta(color.black(' Crunchyroll '))}`)
     const opts = await p.group(
@@ -114,7 +111,7 @@ export default class Crunchyroll extends Command {
 
             // Show spinner while directory is being created
             sp.start(`Now creating ${chosenDirName}`)
-            await newDir(chosenDirName)
+            await createDir(chosenDirName)
             sp.stop()
 
             dirCreated = !dirCreated
@@ -326,54 +323,6 @@ export default class Crunchyroll extends Command {
       url = `https://www.crunchyroll.com/${args.url}`
     }
 
-    // Download from Crunchyroll
-    // let filter = flags.filter
-    // if (flags.all_subs) {
-    //   p.log.step('Filter cannot be used with the all subtitles flag.')
-    //   const proceedAS = await p.confirm({
-    //     message: 'Would you like to continue without a filter?',
-    //     initialValue: true,
-    //   })
-    //   if (!proceedAS) {
-    //     outro('Download aborted! Thank you for using Downloadify.', 'abort')
-    //     this.exit(1)
-    //   }
-    // }
-
-    // if (
-    //   flags.filter &&
-    //   flags.filter?.length > 1 &&
-    //   !flags.filter.includes('-')
-    // ) {
-    //   const isRange = await p.confirm({
-    //     message: 'Is the filter your passing meant to be a range?',
-    //     initialValue: true,
-    //   })
-    //   if (isRange) {
-    //     p.log.step('A filter range must contain - ')
-    //     const newVal = await p.text({
-    //       message: 'Please enter a new filter containing a -',
-    //     })
-    //     filter = String(newVal)
-    //   }
-    // } else if (flags.filter && flags.filter?.length <= 1) {
-    //   p.log.step(
-    //     `${color.bgRed(
-    //       color.black(
-    //         '  A value is required and must be at least 2 characters  ',
-    //       ),
-    //     )}`,
-    //   )
-    //   const proceed = await p.confirm({
-    //     message: 'Would you like to continue without a filter?',
-    //     initialValue: true,
-    //   })
-    //   if (!proceed) {
-    //     outro('Download aborted! Thank you for using Downloadify.', 'abort')
-    //     this.exit(1)
-    //   }
-    // }
-
     // Get the name of the video
     const dwnName = args.url.split('/').at(-1) ?? ''
 
@@ -387,6 +336,7 @@ export default class Crunchyroll extends Command {
         'quiet',
         'default',
         'verbose',
+        'season',
       ])
       rest = Object.keys(flags)
         .map((key) => (dismiss.has(key) ? '' : `--${key}`))
@@ -419,10 +369,6 @@ export default class Crunchyroll extends Command {
           ? 'all'
           : opts.subtitles === 'true',
       hardSubs: defaults?.hardSubs || opts.hardSubs === 'true',
-      // ...(flags.filter &&
-      //   !flags.all_subs && {
-      //     filter,
-      //   }),
       ...(rest && {
         rest,
       }),
