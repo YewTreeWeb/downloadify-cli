@@ -1,5 +1,8 @@
-/* eslint-disable complexity */
-import { spawn } from 'node:child_process'
+import {
+  ChildProcessWithoutNullStreams,
+  SpawnOptions,
+  spawn,
+} from 'node:child_process'
 import { sync } from 'which'
 
 type LanguageProps = {
@@ -25,6 +28,15 @@ type YtdlOptions = {
   verbose?: boolean
 }
 
+type DwnMangaProps = {
+  filter?: null | string
+  language?: string
+  location: string
+  quiet?: boolean
+  rest?: null | string
+  url: string
+}
+
 // Find the path location of ffmpeg
 const findFFmpegLocation = () => {
   const defaultPath = '/opt/homebrew/bin/ffmpeg'
@@ -40,7 +52,7 @@ const findFFmpegLocation = () => {
   return path
 }
 
-const ytdl = async ({
+export const ytdl = async ({
   cookieFile,
   episode,
   format,
@@ -153,4 +165,49 @@ const ytdl = async ({
   })
 }
 
-export default ytdl
+export const dwnManga = async ({
+  location,
+  url,
+  language,
+  filter,
+  rest,
+  quiet = false,
+}: DwnMangaProps & { quiet?: boolean }) => {
+  const args = [
+    '--language',
+    language,
+    url,
+    ...(filter ? [filter] : []),
+    '--filename-template',
+    '{{Series}} - C{{Number}} - {{Title}}',
+    '-o',
+    location,
+    ...(rest ? [rest] : []),
+  ]
+
+  const options: SpawnOptions = {
+    stdio: quiet ? ['pipe', 'pipe', 'pipe'] : 'inherit',
+  }
+
+  const dwnProcess = spawn(
+    'manga-downloader',
+    args.filter((arg) => arg !== undefined) as readonly string[],
+    options,
+  ) as ChildProcessWithoutNullStreams
+
+  if (quiet && !filter && dwnProcess.stdin) {
+    dwnProcess.stdin.write('y')
+  }
+
+  if (process.env.NODE_ENV === 'development') console.info(dwnProcess)
+
+  await new Promise<void>((resolve, reject) => {
+    dwnProcess.on('close', (code) => {
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error(`manga-downloader exited with code ${code}`))
+      }
+    })
+  })
+}

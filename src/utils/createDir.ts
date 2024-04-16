@@ -1,6 +1,7 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import color from 'picocolors'
 
 /**
  * Construct the directory path and create necessary directories if they don't exist.
@@ -8,10 +9,11 @@ import * as path from 'node:path'
  * @param {string} name - the name of the directory
  * @returns {void}
  */
-const newDir = (name: string) => {
+const createDir = (name: string) => {
   // Construct the directory path
-  const dir = path.join(os.homedir(), `Movies/${String(name)}`)
-  const cookiesDir = path.join(os.homedir(), `Movies/${String(name)}/cookies`)
+  const dir = path.join(os.homedir(), `Movies/${name}`)
+  const cookiesDir = path.join(os.homedir(), `Movies/${name}/cookies`)
+  let created = false
 
   try {
     // Check if the directory exists
@@ -25,10 +27,18 @@ const newDir = (name: string) => {
       // If it doesn't, create it
       fs.mkdirSync(cookiesDir)
     }
+
+    created = !created
   } catch (error) {
     // If there is an error log it
-    console.error(error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error(error)
+    } else {
+      color.bgRed(color.white(`  ${error.message}  `))
+    }
   }
+
+  return created
 }
 
-export default newDir
+export default createDir
