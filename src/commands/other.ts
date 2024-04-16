@@ -1,5 +1,3 @@
-/* eslint-disable perfectionist/sort-objects */
-/* eslint-disable object-shorthand */
 import * as p from '@clack/prompts'
 import { Args, Command, Flags } from '@oclif/core'
 import * as fs from 'node:fs'
@@ -7,13 +5,8 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import color from 'picocolors'
 
-import {
-  checkDirExists,
-  checkFileExists,
-  deleteOldCookies,
-  newDir,
-  ytdl,
-} from '../utils/helper'
+import outro from '../utils/outro'
+import ytdl from '../utils/fetcher'
 
 export default class Other extends Command {
   static args = {
@@ -74,8 +67,11 @@ export default class Other extends Command {
     }
 
     console.clear()
+    if (process.env.NODE_ENV === 'development')
+      p.intro(`${color.bgGreen(color.white(' Dev Mode Active '))}`)
+
     p.intro(`${color.bgWhite(color.black(' Other '))}`)
-    const otherOpts = await p.group(
+    const opts = await p.group(
       {
         dir: () =>
           p.text({
@@ -333,28 +329,14 @@ export default class Other extends Command {
       },
     )
 
-    // Create an outro for the cli
-    const outro = (msg: string, type: 'abort' | 'error' | 'success') => {
-      const colours: Record<
-        'abort' | 'error' | 'success',
-        (text: string) => string
-      > = {
-        abort: (text) => color.bgBlack(color.white(text)),
-        error: (text) => color.bgRed(color.black(text)),
-        success: (text) => color.bgWhite(color.black(text)),
-      }
-      const formattedText = colours[type](`  ${msg}  `)
-      return p.outro(formattedText)
-    }
-
     // If confirm is false
-    if (!otherOpts?.confirm) {
+    if (!opts?.confirm) {
       outro('Download aborted! Thank you for using Downloadify.', 'abort')
       this.exit(1)
     }
 
     // Ask where to download video
-    const dirName = otherOpts.dir
+    const dirName = opts.dir
     // Set download directory
     const dwnDir = path.join(os.homedir(), `Movies/${String(dirName)}`)
 
@@ -373,9 +355,9 @@ export default class Other extends Command {
         .join(' ')
     }
 
-    if (otherOpts.moreOpts && String(otherOpts.moreOpts).length > 0) {
+    if (opts.moreOpts && String(opts.moreOpts).length > 0) {
       const emptyRest = rest
-      const moreOpts = String(otherOpts.moreOpts).trim()
+      const moreOpts = String(opts.moreOpts).trim()
       const flags = moreOpts
         .split(' ')
         .map((flag) => {
@@ -392,7 +374,7 @@ export default class Other extends Command {
 
     // If no cookie file end the cli
     // Else run yt-dlp
-    if (!otherOpts.hasCookie && otherOpts.cookie === 'true') {
+    if (!opts.hasCookie && opts.cookie === 'true') {
       outro(
         `Unable to download. Please add a valid and up-to-date cookies file to the ${String(
           dirName,
@@ -403,11 +385,11 @@ export default class Other extends Command {
     } else {
       let hasFailed: boolean | string = false
 
-      const opts = {
+      const ytdlOpts = {
         location: dwnDir,
-        episode: Number(otherOpts?.episodeNum) || null,
-        season: Number(otherOpts?.seasonNum) || null,
-        ...(otherOpts.cookie !== 'skip' &&
+        episode: Number(opts?.episodeNum) || null,
+        season: Number(opts?.seasonNum) || null,
+        ...(opts.cookie !== 'skip' &&
           !flags.default && {
             cookieFile: {
               path: path.join(
@@ -416,15 +398,15 @@ export default class Other extends Command {
                   dirName,
                 )}/cookies/cookies-${formattedDate}.txt`,
               ),
-              exists: otherOpts.cookie === 'true',
+              exists: opts.cookie === 'true',
             },
           }),
         url: args.url,
-        subs: flags.all_subs ? 'all' : otherOpts.subtitles === 'true',
-        hardSubs: otherOpts.hardSubs === 'true',
-        format: otherOpts.enforceEng === 'format',
-        lang: otherOpts.enforceEng === 'lang',
-        title: otherOpts.enforceEng === 'title',
+        subs: flags.all_subs ? 'all' : opts.subtitles === 'true',
+        hardSubs: opts.hardSubs === 'true',
+        format: opts.enforceEng === 'format',
+        lang: opts.enforceEng === 'lang',
+        title: opts.enforceEng === 'title',
         ...(rest && {
           rest,
         }),
@@ -433,7 +415,7 @@ export default class Other extends Command {
         sp.start('Downloading')
       }
 
-      await ytdl(opts).catch((error) => {
+      await ytdl(ytdlOpts).catch((error) => {
         if (process.env.NODE_ENV === 'development') console.error(error)
         hasFailed = error.message
       })

@@ -6,14 +6,10 @@ import * as path from 'node:path'
 import { Args, Command, Flags } from '@oclif/core'
 import * as p from '@clack/prompts'
 import color from 'picocolors'
-import {
-  checkDirExists,
-  checkFileExists,
-  deleteOldCookies,
-  iplayerDl,
-  newDir,
-  ytdl,
-} from '../utils/helper'
+import { checkDirExists, checkFileExists } from '../utils/check'
+import createDir from '../utils/createDir'
+import deleteOldCookies from '../utils/deleteCookie'
+import outro from '../utils/outro'
 
 export default class Iplayer extends Command {
   static description =
@@ -63,6 +59,9 @@ export default class Iplayer extends Command {
       .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
 
     console.clear()
+    if (process.env.NODE_ENV === 'development')
+      p.intro(`${color.bgGreen(color.white(' Dev Mode Active '))}`)
+
     p.intro(`${color.bgMagenta(color.black(' iPlayer '))}`)
     const iplayerOpts = await p.group(
       {
@@ -85,7 +84,7 @@ export default class Iplayer extends Command {
             )
 
             sp.start(`Now creating get_iplayer`)
-            await newDir('get_iplayer')
+            await createDir('get_iplayer')
             sp.stop()
 
             dirCreated = !dirCreated
@@ -193,7 +192,7 @@ export default class Iplayer extends Command {
 
           return cookie
         },
-        other: () =>
+        more: () =>
           p.select({
             message: 'Would you like to add any other params to the download?',
             initialValue: 'false',
@@ -203,8 +202,8 @@ export default class Iplayer extends Command {
               { value: 'false', label: 'No' },
             ],
           }),
-        otherOpts: ({ results }) => {
-          if (results.other === 'false') return
+        custom: ({ results }) => {
+          if (results.more === 'false') return
           return p.text({
             message: 'What other params would you like to add?',
           })
@@ -224,19 +223,6 @@ export default class Iplayer extends Command {
         },
       },
     )
-    // Create an outro for the cli
-    const outro = (msg: string, type: 'abort' | 'error' | 'success') => {
-      const colours: Record<
-        'abort' | 'error' | 'success',
-        (text: string) => string
-      > = {
-        abort: (text) => color.bgMagenta(color.black(text)),
-        error: (text) => color.bgRed(color.black(text)),
-        success: (text) => color.bgMagenta(color.black(text)),
-      }
-      const formattedText = colours[type](`  ${msg}  `)
-      return p.outro(formattedText)
-    }
 
     // If confirm is false
     if (!iplayerOpts.confirm) {
@@ -262,9 +248,9 @@ export default class Iplayer extends Command {
         .join(' ')
     }
 
-    if (iplayerOpts.otherOpts && String(iplayerOpts.otherOpts).length > 0) {
+    if (iplayerOpts.custom && String(iplayerOpts.custom).length > 0) {
       const emptyRest = rest
-      const moreOpts = String(iplayerOpts.otherOpts).trim()
+      const moreOpts = String(iplayerOpts.custom).trim()
       const flags = moreOpts
         .split(' ')
         .map((flag) => {
@@ -316,79 +302,6 @@ export default class Iplayer extends Command {
         }
 
         if (process.env.NODE_ENV === 'development') console.error(error)
-        p.select({
-          message:
-            'Crunchyroll CLI failed to download video. Would you like to retry with yt-dlp?',
-          initialValue: 'yes',
-          options: [
-            { value: 'true', label: 'Yes' },
-            { value: 'false', label: 'No' },
-          ],
-        }).then((res) => {
-          if (Object.keys(flags).length > 0) {
-            const flags = new Set(['quiet', 'verbose'])
-            rest = Object.keys(flags)
-              .map((key) => (flags.has(key) ? `--${key}` : ''))
-              .join(' ')
-          }
-
-          if (res === 'true') {
-            p.text({
-              message: 'Please enter the iPlayer video URL?',
-              validate: (value) => {
-                if (!value) return 'Please enter a URL'
-              },
-            }).then((data) => {
-              if (flags.quiet) {
-                sp.start(
-                  `Downloading${
-                    iplayerOpts.name ? ` ${iplayerOpts.name}` : ''
-                  }`,
-                )
-              }
-
-              const newOpts = {
-                location: dwnDir,
-                url: String(data),
-                cookieFile: {
-                  path: path.join(
-                    os.homedir(),
-                    `Movies/${String(
-                      dwnDir,
-                    )}/cookies/cookies-${formattedDate}.txt`,
-                  ),
-                  exists: iplayerOpts.cookie === 'true',
-                },
-                subs: iplayerOpts.subtitles === 'true',
-                ...(rest && {
-                  rest,
-                }),
-              }
-              ytdl(newOpts)
-                .then(() => {
-                  outro(
-                    'All downloads completed! Thank you for using Downloadify. Completed download',
-                    'success',
-                  )
-                })
-                .catch((error) => {
-                  if (flags.quiet) {
-                    sp.stop()
-                  }
-
-                  if (process.env.NODE_ENV === 'development')
-                    console.error(error)
-                  outro('An error occurred. Unable to download', 'error')
-                })
-            })
-          } else {
-            if (flags.quiet) {
-              sp.stop()
-            }
-
-            outro('An error occurred. Unable to download.', 'error')
-          }
-        })
       })
   }
 }
