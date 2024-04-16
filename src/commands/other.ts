@@ -1,5 +1,3 @@
-/* eslint-disable perfectionist/sort-objects */
-/* eslint-disable object-shorthand */
 import * as p from '@clack/prompts'
 import { Args, Command, Flags } from '@oclif/core'
 import * as fs from 'node:fs'
@@ -7,13 +5,11 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import color from 'picocolors'
 
-import {
-  checkDirExists,
-  checkFileExists,
-  deleteOldCookies,
-  newDir,
-  ytdl,
-} from '../utils/helper'
+import { checkDirExists, checkFileExists } from '../utils/check'
+import createDir from '../utils/createDir'
+import deleteOldCookies from '../utils/deleteCookie'
+import { ytdl } from '../utils/fetcher'
+import outro from '../utils/outro'
 
 export default class Other extends Command {
   static args = {
@@ -74,13 +70,16 @@ export default class Other extends Command {
     }
 
     console.clear()
-    p.intro(`${color.bgWhite(color.black(' Other '))}`)
+    if (process.env.NODE_ENV === 'development')
+      p.intro(`${color.bgGreen(color.white(' Dev Mode Active '))}`)
+
+    p.intro(`${color.bgMagenta(color.black(' Other '))}`)
     const otherOpts = await p.group(
       {
         dir: () =>
           p.text({
             message: 'What directory would you like to use for your downloads?',
-            placeholder: 'Videos',
+            initialValue: 'Videos',
             validate: (value) => {
               const regex = /^[A-Za-z-]+$/
               if (!value) return 'Please enter a directory'
@@ -113,7 +112,7 @@ export default class Other extends Command {
             )
 
             sp.start(`Now creating ${String(results.dir)}`)
-            await newDir(String(results.dir))
+            await createDir(String(results.dir))
             sp.stop()
 
             dirCreated = !dirCreated
@@ -327,25 +326,11 @@ export default class Other extends Command {
       },
       {
         onCancel: () => {
-          p.cancel(color.bgWhite(color.black('  Download cancelled  ')))
+          p.cancel(color.bgMagenta(color.black('  Download cancelled  ')))
           this.exit(0)
         },
       },
     )
-
-    // Create an outro for the cli
-    const outro = (msg: string, type: 'abort' | 'error' | 'success') => {
-      const colours: Record<
-        'abort' | 'error' | 'success',
-        (text: string) => string
-      > = {
-        abort: (text) => color.bgBlack(color.white(text)),
-        error: (text) => color.bgRed(color.black(text)),
-        success: (text) => color.bgWhite(color.black(text)),
-      }
-      const formattedText = colours[type](`  ${msg}  `)
-      return p.outro(formattedText)
-    }
 
     // If confirm is false
     if (!otherOpts?.confirm) {

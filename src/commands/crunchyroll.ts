@@ -8,7 +8,7 @@ import color from 'picocolors'
 import { checkDirExists, checkFileExists } from '../utils/check'
 import createDir from '../utils/createDir'
 import deleteOldCookies from '../utils/deleteCookie'
-import ytdl from '../utils/fetcher'
+import { ytdl } from '../utils/fetcher'
 import outro from '../utils/outro'
 
 export default class Crunchyroll extends Command {
@@ -165,13 +165,12 @@ export default class Crunchyroll extends Command {
 
           // Move cookie file from Downloads
           // rename file to have date
-          sp.start('fetching cookie')
           const hasDownloadedCookie = await checkFileExists(downloadedCookie)
-          if (hasDownloadedCookie)
+          if (hasDownloadedCookie) {
             fs.rename(downloadedCookie, formattedCookieFile, (err) => {
               if (process.env.NODE_ENV === 'development') console.error(err)
             })
-          sp.stop()
+          }
 
           const cookieCheck =
             (await checkFileExists(formattedCookieFile)) ||
@@ -260,7 +259,7 @@ export default class Crunchyroll extends Command {
       {
         onCancel: () => {
           p.cancel(
-            color.bgYellow(color.black('  Crunchyroll download cancelled  ')),
+            color.bgMagenta(color.black('  Crunchyroll download cancelled  ')),
           )
           this.exit(0)
         },
@@ -303,7 +302,8 @@ export default class Crunchyroll extends Command {
     //
     //   Input: 'watch/GYEXQKJG6/dr-stone'
     //   Output: 'https://www.crunchyroll.com/watch/GYEXQKJG6/dr-stone'
-    let url = 'https://www.crunchyroll.com/'
+    const baseUrl = 'https://www.crunchyroll.com/'
+    let url = ''
     if (
       !args.url.includes('crunchyroll') &&
       // Check if URL is a series URL
@@ -312,15 +312,13 @@ export default class Crunchyroll extends Command {
       !args.url.includes('watch')
     ) {
       // Add series or watch to beginning of URL
-      url = `https://www.crunchyroll.com/${
-        flags?.season ? 'series' : 'watch'
-      }/${args.url}`
+      url = `${baseUrl}${flags?.season ? 'series' : 'watch'}/${args.url}`
     } else if (args.url.includes('crunchyroll')) {
       // URL is already formatted
       url = args.url
     } else {
       // Add www.crunchyroll.com to beginning of URL
-      url = `https://www.crunchyroll.com/${args.url}`
+      url = `${baseUrl}${args.url}`
     }
 
     // Get the name of the video
@@ -403,8 +401,8 @@ export default class Crunchyroll extends Command {
 
         if (process.env.NODE_ENV === 'development') console.error(error)
         outro(
-          `An error occurred. Unable to download - ${color.underline(
-            color.white(dwnName),
+          `An error occurred. Unable to download due to the following error: ${color.underline(
+            color.white(error.message),
           )}`,
           'error',
         )
