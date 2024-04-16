@@ -23,7 +23,7 @@ type YtdlOptions = {
   quiet?: boolean
   rest?: null | string
   season?: null | number | string
-  subs: boolean | string
+  subs?: boolean | string
   url: string
   verbose?: boolean
 }
@@ -35,6 +35,14 @@ type DwnMangaProps = {
   quiet?: boolean
   rest?: null | string
   url: string
+}
+
+type IPlayerProps = {
+  location: string
+  pid: string
+  rest?: null | string
+  season?: boolean
+  subs?: boolean | string
 }
 
 // Find the path location of ffmpeg
@@ -75,18 +83,18 @@ export const ytdl = async ({
     subs && subs === 'all'
       ? ['--sub-langs', 'all']
       : subs
-        ? ['--sub-langs', 'en.*']
-        : []
+      ? ['--sub-langs', 'en.*']
+      : []
   const cookies = cookieFile?.exists
     ? ['--cookies', String(cookieFile.path)]
     : cookieFile?.exists
-      ? []
-      : [
-          '--cookies-from-browser',
-          'chrome',
-          '--cookies',
-          String(cookieFile?.path),
-        ]
+    ? []
+    : [
+        '--cookies-from-browser',
+        'chrome',
+        '--cookies',
+        String(cookieFile?.path),
+      ]
 
   // Set format
   const formatType =
@@ -110,8 +118,8 @@ export const ytdl = async ({
         lang = format.forceEn
           ? 'bv+ba[language*=en]'
           : format.custom === 'multi'
-            ? 'bv*+mergeall[vcodec=none]'
-            : `bv+ba[language*=${format.custom}]`
+          ? 'bv*+mergeall[vcodec=none]'
+          : `bv+ba[language*=${format.custom}]`
 
         break
       }
@@ -207,6 +215,47 @@ export const dwnManga = async ({
         resolve()
       } else {
         reject(new Error(`manga-downloader exited with code ${code}`))
+      }
+    })
+  })
+}
+
+export const iplayerDl = async ({
+  location,
+  pid,
+  season,
+  subs = false,
+  rest,
+}: IPlayerProps) => {
+  const iPlayerProcess = spawn(
+    'get_iplayer',
+    [
+      '--pid',
+      pid,
+      ...(season ? ['--pid-recursive'] : []),
+      '--tv-quality=fhd',
+      ...(subs ? ['--subtitles'] : []),
+      '--output',
+      location,
+      '--subdir',
+      '--subdir-format',
+      '<nameshort>/Season<seriesnum>',
+      '--file-prefix',
+      '<nameshort>-S<seriesnum>E<episodenum>-<episodeshort>',
+      // Add additional arguments
+      ...(rest ? [rest] : []),
+    ],
+    { stdio: rest?.includes('quiet') ? ['pipe', 'pipe', 'pipe'] : 'inherit' },
+  )
+
+  if (process.env.NODE_ENV === 'development') console.info(iPlayerProcess)
+
+  await new Promise<void>((resolve, reject) => {
+    iPlayerProcess.on('close', (code) => {
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error(`get_iplayer exited with code ${code}`))
       }
     })
   })

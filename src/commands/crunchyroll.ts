@@ -128,11 +128,11 @@ export default class Crunchyroll extends Command {
           if (flags.default) return
           return p.select({
             message: 'Have you downloaded a Crunchyroll cookie file?',
-            initialValue: 'false',
+            initialValue: false,
             maxItems: 3,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              { value: true, label: 'Yes' },
+              { value: false, label: 'No' },
             ],
           })
         },
@@ -203,28 +203,23 @@ export default class Crunchyroll extends Command {
           if (flags.all_subs || flags.default) return
           return p.select({
             message: 'Would you like to download subtitles?',
-            initialValue: 'true',
+            initialValue: true,
             maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              { value: true, label: 'Yes' },
+              { value: false, label: 'No' },
             ],
           })
         },
         hardSubs: async ({ results }) => {
-          if (
-            flags.default ||
-            results.subtitles === 'false' ||
-            !args.url.includes('crunchyroll')
-          )
-            return
+          if (flags.default || !results.subtitles) return
           return p.select({
             message: 'Would you like the subtitles to be hard coded?',
-            initialValue: 'false',
+            initialValue: false,
             maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              { value: true, label: 'Yes' },
+              { value: false, label: 'No' },
             ],
           })
         },
@@ -232,16 +227,16 @@ export default class Crunchyroll extends Command {
           if (flags.default) return
           return p.select({
             message: 'Would you like to add any other params to the download?',
-            initialValue: 'false',
+            initialValue: false,
             maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              { value: true, label: 'Yes' },
+              { value: false, label: 'No' },
             ],
           })
         },
         custom: ({ results }) => {
-          if (results.more === 'false' || flags.default) return
+          if (!results.more || flags.default) return
           return p.text({
             message: 'What other params would you like to add?',
           })
@@ -281,10 +276,11 @@ export default class Crunchyroll extends Command {
       this.exit(1)
     }
 
-    // Ask where to download video
-    const dirName = defaults?.dir || opts.dir
     // Set download directory
-    const dwnDir = path.join(os.homedir(), `Movies/${dirName}`)
+    const dwnDir = path.join(
+      os.homedir(),
+      `Movies/${defaults?.dir || opts.dir}`,
+    )
 
     // Format URL if not already formatted
     // Check if URL is already formatted with 'crunchyroll' in it
@@ -362,11 +358,8 @@ export default class Crunchyroll extends Command {
     const ytdlOpts = {
       location: dwnDir,
       url,
-      subs:
-        defaults?.subtitles || flags.all_subs
-          ? 'all'
-          : opts.subtitles === 'true',
-      hardSubs: defaults?.hardSubs || opts.hardSubs === 'true',
+      subs: defaults?.subtitles || flags.all_subs ? 'all' : opts.subtitles,
+      hardSubs: defaults?.hardSubs || opts.hardSubs,
       ...(rest && {
         rest,
       }),

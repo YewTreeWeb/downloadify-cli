@@ -1,19 +1,18 @@
-/* eslint-disable perfectionist/sort-objects */
-/* eslint-disable object-shorthand */
+import * as p from '@clack/prompts'
+import { Args, Command, Flags } from '@oclif/core'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { Args, Command, Flags } from '@oclif/core'
-import * as p from '@clack/prompts'
 import color from 'picocolors'
-import { checkDirExists, checkFileExists } from '../utils/check'
+
+import { checkDirExists } from '../utils/check'
 import createDir from '../utils/createDir'
-import deleteOldCookies from '../utils/deleteCookie'
 import outro from '../utils/outro'
+import { iplayerDl } from '../utils/fetcher'
 
 export default class Iplayer extends Command {
   static description =
-    'The iplayer command gives the user the ability to download videos from the iPlayer UK website by providing the PID of the show/episode.'
+    'The iPlayer command gives the user the ability to download videos from the iPlayer UK website by providing the PID of the show/episode.'
 
   static examples = ['downloadify iplayer m001rswk']
 
@@ -63,7 +62,7 @@ export default class Iplayer extends Command {
       p.intro(`${color.bgGreen(color.white(' Dev Mode Active '))}`)
 
     p.intro(`${color.bgMagenta(color.black(' iPlayer '))}`)
-    const iplayerOpts = await p.group(
+    const opts = await p.group(
       {
         hasDir: async () => {
           // Check to see if directory exists
@@ -110,100 +109,28 @@ export default class Iplayer extends Command {
           if (flags.default) return
           return p.select({
             message: 'Would you like to download subtitles?',
-            initialValue: 'false',
+            initialValue: false,
             maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              { value: true, label: 'Yes' },
+              { value: false, label: 'No' },
             ],
           })
         },
-        cookie: () =>
-          p.select({
-            message: 'Have you downloaded an iPlayer cookie file?',
-            initialValue: 'skip',
-            maxItems: 3,
-            options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
-              { value: 'skip', label: 'Skip' },
-            ],
-          }),
-        hasCookie: async ({ results }) => {
-          if (results.cookie === 'skip') return
-          let cookie = false
-          const cookieDir = path.join(
-            os.homedir(),
-            'Movies/get_iplayer/cookies',
-          )
-          // Remove outdated cookies
-          deleteOldCookies(cookieDir, 'get_iplayer')
-
-          // Display warning message
-          if (results.cookie === 'false') {
-            p.log.step(
-              'An attempt to downloaded cookies automatically will start soon. Please make sure the website you are downloading from is open in Chrome',
-            )
-          }
-
-          // Skip to next command if previous isn't true
-          if (results.cookie !== 'true') return
-
-          const downloadedCookie = path.join(
-            os.homedir(),
-            `Downloads/www.bbc.co.uk_cookies.txt`,
-          )
-          const formattedCookieFile = `${cookieDir}/cookies-${formattedDate}.txt`
-
-          // Move cookie file from Downloads
-          // rename file to have date
-          sp.start('fetching cookie')
-          const hasDownloadedCookie = await checkFileExists(downloadedCookie)
-          if (hasDownloadedCookie)
-            fs.rename(downloadedCookie, formattedCookieFile, (err) => {
-              if (process.env.NODE_ENV === 'development') console.error(err)
-            })
-          sp.stop()
-
-          const cookieCheck =
-            (await checkFileExists(formattedCookieFile)) ||
-            (await checkFileExists(downloadedCookie))
-
-          if (cookieCheck) {
-            // If cookie file found
-            cookie = true
-            p.log.step(
-              `${color.bgGreen(
-                color.black(
-                  ` Success an up to date cookie file was found in the get_iplayer directory `,
-                ),
-              )}`,
-            )
-          } else {
-            // If no cookie file found
-            p.log.step(
-              `${color.bgRed(
-                color.black(
-                  ` Failed to find an up to date cookie file in the get_iplayer directory `,
-                ),
-              )}`,
-            )
-          }
-
-          return cookie
-        },
-        more: () =>
-          p.select({
+        more: () => {
+          if (flags.default) return
+          return p.select({
             message: 'Would you like to add any other params to the download?',
-            initialValue: 'false',
+            initialValue: false,
             maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              { value: true, label: 'Yes' },
+              { value: false, label: 'No' },
             ],
-          }),
+          })
+        },
         custom: ({ results }) => {
-          if (results.more === 'false') return
+          if (!results.more || flags.default) return
           return p.text({
             message: 'What other params would you like to add?',
           })
@@ -225,7 +152,7 @@ export default class Iplayer extends Command {
     )
 
     // If confirm is false
-    if (!iplayerOpts.confirm) {
+    if (!opts.confirm) {
       outro('Download aborted! Thank you for using Downloadify.', 'abort')
       this.exit(1)
     }
@@ -233,25 +160,21 @@ export default class Iplayer extends Command {
     // Set download directory
     const dwnDir = path.join(os.homedir(), `Movies/get_iplayer`)
 
-    // Add arguments to the rest param
+    /* Add arguments to the rest param */
+    // Loop through the flags and any not in the ignore to the res variable
     let rest: null | string = null
     if (Object.keys(flags).length > 0) {
+      const dismiss = new Set(['default', 'season'])
       rest = Object.keys(flags)
-        .map((key) => {
-          let newKey = ''
-          if (key !== 'default') {
-            newKey = `--${key}`
-          }
-
-          return newKey
-        })
+        .map((key) => (dismiss.has(key) ? '' : `--${key}`))
         .join(' ')
     }
 
-    if (iplayerOpts.custom && String(iplayerOpts.custom).length > 0) {
+    // Loop through custom commands added and format them to be valid args for yt-dlp
+    if (opts.custom && String(opts.custom).length > 0 && !flags.default) {
       const emptyRest = rest
-      const moreOpts = String(iplayerOpts.custom).trim()
-      const flags = moreOpts
+      const customOpts = String(opts.custom).trim()
+      const flags = customOpts
         .split(' ')
         .map((flag) => {
           let formattedFlag = flag.startsWith('--') ? flag : `--${flag}`
@@ -265,43 +188,38 @@ export default class Iplayer extends Command {
       rest = emptyRest ? `${rest} ${flags}` : flags
     }
 
-    // let hasFailed: boolean | string = false
-    // let retry: string | boolean = false
-
-    const opts = {
+    const iOpts = {
       location: dwnDir,
       pid: args.pid,
       season: flags.season ?? false,
-      subs: iplayerOpts.subtitles === 'true',
+      subs: opts.subtitles,
       ...(rest && {
         rest,
       }),
     }
-    if (flags.quiet) {
-      sp.start(`Downloading${iplayerOpts.name ? ` ${iplayerOpts.name}` : ''}`)
-    }
+    if (flags.quiet) sp.start(`Downloading${opts.name ? ` ${opts.name}` : ''}`)
 
-    await iplayerDl(opts)
+    await iplayerDl(iOpts)
       .then(() => {
-        if (flags.quiet) {
-          sp.stop()
-        }
+        if (flags.quiet && !flags.verbose) sp.stop()
 
         outro(
-          `${
-            iplayerOpts.name
-              ? `Completed download for ${iplayerOpts.name}.`
-              : 'All downloads completed!'
-          } Thank you for using Downloadify.`,
+          `All downloads completed! Thank you for using Downloadify. Completed downloading - ${color.underline(
+            color.black(opts.name),
+          )}`,
           'success',
         )
       })
       .catch((error) => {
-        if (flags.quiet) {
-          sp.stop()
-        }
+        if (flags.quiet && !flags.verbose) sp.stop()
 
         if (process.env.NODE_ENV === 'development') console.error(error)
+        outro(
+          `An error occurred. Unable to download due to the following error: ${color.underline(
+            color.white(error.message),
+          )}`,
+          'error',
+        )
       })
   }
 }

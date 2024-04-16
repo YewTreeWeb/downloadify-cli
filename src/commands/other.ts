@@ -76,8 +76,9 @@ export default class Other extends Command {
     p.intro(`${color.bgMagenta(color.black(' Other '))}`)
     const opts = await p.group(
       {
-        dir: () =>
-          p.text({
+        dir: () => {
+          if (flags.default) return
+          return p.text({
             message: 'What directory would you like to use for your downloads?',
             initialValue: 'Videos',
             validate: (value) => {
@@ -86,12 +87,12 @@ export default class Other extends Command {
               if (!regex.test(value))
                 return 'Directory name may only contain letters and dashes'
             },
-          }),
+          })
+        },
         hasDir: async ({ results }) => {
+          const chosenDirName = results.dir ?? 'Videos'
           // Check to see if directory exists
-          const dirExists = await checkDirExists(
-            `Movies/${String(results.dir)}`,
-          )
+          const dirExists = await checkDirExists(`Movies/${chosenDirName}`)
           let dirCreated = false
           // If directory doesn't exist create it
           // Else once directory is created, notify user
@@ -99,26 +100,25 @@ export default class Other extends Command {
             dirCreated = !dirCreated
             p.log.step(
               `${color.bgGreen(
-                color.black(` Found directory ${String(results.dir)} `),
+                color.black(` Found directory ${chosenDirName} `),
               )}`,
             )
           } else {
             p.log.step(
               `${color.bgRed(
-                color.white(
-                  `  Directory ${String(results.dir)} does not exist  `,
-                ),
+                color.white(`  Directory ${chosenDirName} does not exist  `),
               )}`,
             )
 
-            sp.start(`Now creating ${String(results.dir)}`)
-            await createDir(String(results.dir))
+            // Show spinner while directory is being created
+            sp.start(`Now creating ${chosenDirName}`)
+            await createDir(chosenDirName)
             sp.stop()
 
             dirCreated = !dirCreated
             p.log.step(
               `${color.bgGreen(
-                color.black(` Successfully created ${String(results.dir)} `),
+                color.black(` Successfully created ${chosenDirName} `),
               )}`,
             )
           }
@@ -208,79 +208,15 @@ export default class Other extends Command {
 
           return cookie
         },
-        includeSE: () => {
-          if (flags.default) return
-          return p.select({
-            message: 'Do you need to enter a season or episode?',
-            initialValue: 'both',
-            maxItems: 4,
-            options: [
-              { value: 'both', label: 'Both' },
-              { value: 'season', label: 'Season' },
-              { value: 'episode', label: 'Episode' },
-              { value: 'skip', label: 'Skip' },
-            ],
-          })
-        },
-        seasonNum: ({ results }) => {
-          if (
-            String(results.includeSE) === 'episode' ||
-            String(results.includeSE) === 'skip' ||
-            flags.default
-          )
-            return
-          return p.text({
-            message: 'What is the number of the season you want to download?',
-            initialValue: '1',
-            validate(value) {
-              const regex = /^[1-9]\d*$/
-              if (!regex.test(value))
-                return 'Season number must be a positive number'
-            },
-          })
-        },
-        episodeNum: ({ results }) => {
-          if (
-            String(results.includeSE) === 'season' ||
-            String(results.includeSE) === 'skip' ||
-            flags.default
-          )
-            return
-          return p.text({
-            message: 'Enter the episode number you want to download',
-            validate: (value) => {
-              const regex = /^[1-9]\d*$/
-              if (!regex.test(value))
-                return 'Episode number must be a positive number'
-            },
-          })
-        },
         subtitles: async () => {
           if (flags.all_subs || flags.default) return
           return p.select({
             message: 'Would you like to download subtitles?',
-            initialValue: 'true',
+            initialValue: true,
             maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
-            ],
-          })
-        },
-        hardSubs: async ({ results }) => {
-          if (
-            flags.default ||
-            results.subtitles === 'false' ||
-            !args.url.includes('crunchyroll')
-          )
-            return
-          return p.select({
-            message: 'Would you like the subtitles to be hard coded?',
-            initialValue: 'false',
-            maxItems: 2,
-            options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              { value: true, label: 'Yes' },
+              { value: false, label: 'No' },
             ],
           })
         },
@@ -302,16 +238,16 @@ export default class Other extends Command {
           if (flags.default) return
           return p.select({
             message: 'Would you like to add any other params to the download?',
-            initialValue: 'false',
+            initialValue: false,
             maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              { value: true, label: 'Yes' },
+              { value: false, label: 'No' },
             ],
           })
         },
-        moreOpts: ({ results }) => {
-          if (results.more === 'false' || flags.default) return
+        custom: ({ results }) => {
+          if (!results.more || flags.default) return
           return p.text({
             message: 'What other params would you like to add?',
           })
@@ -319,7 +255,7 @@ export default class Other extends Command {
         confirm: ({ results }) =>
           p.confirm({
             message: results.hasDir
-              ? `Download videos to ${results.dir}?`
+              ? `Download videos to ${results.dir ?? 'Videos'}?`
               : 'Confirm settings?',
             initialValue: true,
           }),
@@ -343,25 +279,21 @@ export default class Other extends Command {
     // Set download directory
     const dwnDir = path.join(os.homedir(), `Movies/${String(dirName)}`)
 
-    // Add arguments to the rest param
+    //* Add arguments to the rest param */
+    // Loop through the flags and any not in the ignore to the res variable
     let rest: null | string = null
     if (Object.keys(flags).length > 0) {
+      const dismiss = new Set(['all_subs', 'quiet', 'default', 'verbose'])
       rest = Object.keys(flags)
-        .map((key) => {
-          let newKey = ''
-          if (key !== 'all_subs' && key !== 'default') {
-            newKey = `--${key}`
-          }
-
-          return newKey
-        })
+        .map((key) => (dismiss.has(key) ? '' : `--${key}`))
         .join(' ')
     }
 
-    if (opts.moreOpts && String(opts.moreOpts).length > 0) {
+    // Loop through custom commands added and format them to be valid args for yt-dlp
+    if (opts.custom && String(opts.custom).length > 0 && !flags.default) {
       const emptyRest = rest
-      const moreOpts = String(opts.moreOpts).trim()
-      const flags = moreOpts
+      const customOpts = String(opts.custom).trim()
+      const flags = customOpts
         .split(' ')
         .map((flag) => {
           let formattedFlag = flag.startsWith('--') ? flag : `--${flag}`
