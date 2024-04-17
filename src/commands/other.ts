@@ -338,7 +338,7 @@ export default class Other extends Command {
     const format: LanguageProps = {
       type: opts.enforceEng !== 'false' ? String(opts.enforceEng) : 'language',
       custom: String(opts.otherLang) ?? null,
-      forceEn: opts.enforceEng !== 'false'
+      forceEn: opts.enforceEng !== 'false',
     }
 
     // If no cookie file end the cli
@@ -351,36 +351,35 @@ export default class Other extends Command {
       this.exit(1)
     }
 
-      const ytdlOpts = {
-        location: dwnDir,
-        episode: null,
-        season: null,
-        ...(opts.cookie !== 'skip' &&
-          !flags.default && {
-            cookieFile: {
-              path: path.join(
-                os.homedir(),
-                `Movies/${String(
-                  dirName,
-                )}/cookies/cookies-${formattedDate}.txt`,
-              ),
-              exists: opts.cookie === 'true',
-            },
-          }),
-        url: args.url,
-        subs: defaults?.subtitles || flags.all_subs ? 'all' : opts.subtitles,
-        ...(!defaults?.enforceEng && {
-          format,
+    const ytdlOpts = {
+      location: dwnDir,
+      episode: null,
+      season: null,
+      ...(opts.cookie !== 'skip' &&
+        !flags.default && {
+          cookieFile: {
+            path: path.join(
+              os.homedir(),
+              `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
+            ),
+            exists: opts.cookie === 'true',
+          },
         }),
-        ...(rest && {
-          rest,
-        }),
-      }
-      if (flags.quiet) {
-        sp.start('Downloading')
-      }
+      url: args.url,
+      subs: defaults?.subtitles || flags.all_subs ? 'all' : opts.subtitles,
+      ...(!defaults?.enforceEng && {
+        format,
+      }),
+      ...(rest && {
+        rest,
+      }),
+    }
+    if (flags.quiet) {
+      sp.start('Downloading')
+    }
 
-      await ytdl(ytdlOpts).then(() => {
+    await ytdl(ytdlOpts)
+      .then(() => {
         if (flags.quiet) sp.stop()
 
         outro(
@@ -399,6 +398,5 @@ export default class Other extends Command {
           'error',
         )
       })
-    }
   }
 }
