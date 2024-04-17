@@ -215,7 +215,7 @@ export const dwnManga = async ({
     options,
   ) as ChildProcessWithoutNullStreams
 
-  if (quiet && !filter && dwnProcess.stdin) {
+  if (!filter && dwnProcess.stdin) {
     dwnProcess.stdin.write('y\n')
   }
 

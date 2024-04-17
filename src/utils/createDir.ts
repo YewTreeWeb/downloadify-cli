@@ -7,12 +7,16 @@ import color from 'picocolors'
  * Construct the directory path and create necessary directories if they don't exist.
  *
  * @param {string} name - the name of the directory
+ * @param {string} dest - the location to create the directory in (defaults to the user's Movies directory)
+ * @param requireCookies Whether or not to create a cookies directory
  * @returns {void}
  */
-const createDir = (name: string) => {
+const createDir = (name: string, dest?: string, requireCookies = true) => {
   // Construct the directory path
-  const dir = path.join(os.homedir(), `Movies/${name}`)
-  const cookiesDir = path.join(os.homedir(), `Movies/${name}/cookies`)
+  const dir = path.join(os.homedir(), `${dest ?? 'Movies'}/${name}`)
+  const cookiesDir = requireCookies
+    ? path.join(os.homedir(), `${dest ?? 'Movies'}/${name}/cookies`)
+    : null
   let created = false
 
   try {
@@ -23,9 +27,9 @@ const createDir = (name: string) => {
     }
 
     // Check if the cookies directory exists
-    if (!fs.existsSync(cookiesDir)) {
+    if (requireCookies && !fs.existsSync(String(cookiesDir))) {
       // If it doesn't, create it
-      fs.mkdirSync(cookiesDir)
+      fs.mkdirSync(String(cookiesDir))
     }
 
     created = !created

@@ -85,13 +85,13 @@ export default class Manga extends Command {
           } else {
             p.log.step(
               `${color.bgRed(
-                color.white(`  Directory ${chosenDirName} does not exist  `),
+                color.black(`  Directory ${chosenDirName} does not exist  `),
               )}`,
             )
 
             // Show spinner while directory is being created
             sp.start(`Now creating ${chosenDirName}`)
-            await createDir(chosenDirName)
+            await createDir(chosenDirName, 'Documents', false)
             sp.stop()
 
             dirCreated = !dirCreated
