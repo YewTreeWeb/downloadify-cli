@@ -1,3 +1,4 @@
+import { exit } from '@oclif/core/lib/errors'
 import {
   ChildProcessWithoutNullStreams,
   SpawnOptions,
@@ -5,10 +6,10 @@ import {
 } from 'node:child_process'
 import { sync } from 'which'
 
-type LanguageProps = {
-  custom?: string
+export type LanguageProps = {
+  custom?: null | string
   forceEn?: boolean
-  type: 'id' | 'language' | 'title'
+  type: string
 }
 
 type YtdlOptions = {
@@ -83,18 +84,18 @@ export const ytdl = async ({
     subs && subs === 'all'
       ? ['--sub-langs', 'all']
       : subs
-      ? ['--sub-langs', 'en.*']
-      : []
+        ? ['--sub-langs', 'en.*']
+        : []
   const cookies = cookieFile?.exists
     ? ['--cookies', String(cookieFile.path)]
     : cookieFile?.exists
-    ? []
-    : [
-        '--cookies-from-browser',
-        'chrome',
-        '--cookies',
-        String(cookieFile?.path),
-      ]
+      ? []
+      : [
+          '--cookies-from-browser',
+          'chrome',
+          '--cookies',
+          String(cookieFile?.path),
+        ]
 
   // Set format
   const formatType =
@@ -115,11 +116,12 @@ export const ytdl = async ({
       }
 
       case 'language': {
-        lang = format.forceEn
-          ? 'bv+ba[language*=en]'
-          : format.custom === 'multi'
-          ? 'bv*+mergeall[vcodec=none]'
-          : `bv+ba[language*=${format.custom}]`
+        lang =
+          format.forceEn || !format.custom
+            ? 'bv+ba[language*=en]'
+            : format.custom === 'multi'
+              ? 'bv*+mergeall[vcodec=none]'
+              : `bv+ba[language*=${format.custom}]`
 
         break
       }
@@ -162,6 +164,16 @@ export const ytdl = async ({
 
   if (process.env.NODE_ENV === 'development') console.info(ytdlProcess)
 
+  // Add a listener for the SIGINT signal
+  process.on('SIGINT', () => {
+    // Send SIGINT signal to the child process
+    if (ytdlProcess) {
+      ytdlProcess.kill('SIGINT')
+    }
+
+    exit(1)
+  })
+
   await new Promise<void>((resolve, reject) => {
     ytdlProcess.on('close', (code) => {
       if (code === 0) {
@@ -187,14 +199,14 @@ export const dwnManga = async ({
     url,
     ...(filter ? [filter] : []),
     '--filename-template',
-    '{{Series}} - C{{Number}} - {{Title}}',
+    '{{.Series}} - Ch{{.Number}} - {{.Title}}',
     '-o',
     location,
     ...(rest ? [rest] : []),
   ]
 
   const options: SpawnOptions = {
-    stdio: quiet ? ['pipe', 'pipe', 'pipe'] : 'inherit',
+    stdio: quiet ? ['pipe', 'pipe', 'pipe'] : ['pipe', 'inherit', 'inherit'],
   }
 
   const dwnProcess = spawn(
@@ -204,10 +216,23 @@ export const dwnManga = async ({
   ) as ChildProcessWithoutNullStreams
 
   if (quiet && !filter && dwnProcess.stdin) {
-    dwnProcess.stdin.write('y')
+    dwnProcess.stdin.write('y\n')
   }
 
-  if (process.env.NODE_ENV === 'development') console.info(dwnProcess)
+  if (process.env.NODE_ENV === 'development') {
+    console.info('dwnProcess.stdin', dwnProcess.stdin)
+    console.info(dwnProcess)
+  }
+
+  // Add a listener for the SIGINT signal
+  process.on('SIGINT', () => {
+    // Send SIGINT signal to the child process
+    if (dwnProcess) {
+      dwnProcess.kill('SIGINT')
+    }
+
+    exit(1)
+  })
 
   await new Promise<void>((resolve, reject) => {
     dwnProcess.on('close', (code) => {
@@ -249,6 +274,16 @@ export const iplayerDl = async ({
   )
 
   if (process.env.NODE_ENV === 'development') console.info(iPlayerProcess)
+
+  // Add a listener for the SIGINT signal
+  process.on('SIGINT', () => {
+    // Send SIGINT signal to the child process
+    if (iPlayerProcess) {
+      iPlayerProcess.kill('SIGINT')
+    }
+
+    exit(1)
+  })
 
   await new Promise<void>((resolve, reject) => {
     iPlayerProcess.on('close', (code) => {

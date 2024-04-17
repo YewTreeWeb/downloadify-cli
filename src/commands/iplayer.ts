@@ -104,11 +104,11 @@ export default class Iplayer extends Command {
           if (flags.default) return
           return p.select({
             message: 'Would you like to download subtitles?',
-            initialValue: false,
+            initialValue: 'false',
             maxItems: 2,
             options: [
-              { value: true, label: 'Yes' },
-              { value: false, label: 'No' },
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
             ],
           })
         },
@@ -116,16 +116,16 @@ export default class Iplayer extends Command {
           if (flags.default) return
           return p.select({
             message: 'Would you like to add any other params to the download?',
-            initialValue: false,
+            initialValue: 'false',
             maxItems: 2,
             options: [
-              { value: true, label: 'Yes' },
-              { value: false, label: 'No' },
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
             ],
           })
         },
         custom: ({ results }) => {
-          if (!results.more || flags.default) return
+          if (results.more === 'false' || flags.default) return
           return p.text({
             message: 'What other params would you like to add?',
           })
@@ -166,7 +166,11 @@ export default class Iplayer extends Command {
     }
 
     // Loop through custom commands added and format them to be valid args for yt-dlp
-    if (opts.custom && String(opts.custom).length > 0 && !flags.default) {
+    if (
+      opts.more === 'true' &&
+      String(opts.custom).length > 0 &&
+      !flags.default
+    ) {
       const emptyRest = rest
       const customOpts = String(opts.custom).trim()
       const flags = customOpts
@@ -187,7 +191,7 @@ export default class Iplayer extends Command {
       location: dwnDir,
       pid: args.pid,
       season: flags.season ?? false,
-      subs: opts.subtitles,
+      subs: opts.subtitles === 'true',
       ...(rest && {
         rest,
       }),
@@ -211,7 +215,7 @@ export default class Iplayer extends Command {
         if (process.env.NODE_ENV === 'development') console.error(error)
         outro(
           `An error occurred. Unable to download due to the following error: ${color.underline(
-            color.white(error.message),
+            color.black(error.message),
           )}`,
           'error',
         )

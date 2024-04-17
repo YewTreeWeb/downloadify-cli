@@ -252,7 +252,7 @@ export default class Manga extends Command {
         if (process.env.NODE_ENV === 'development') console.error(error)
         outro(
           `An error occurred. Unable to download due to the following error: ${color.underline(
-            color.white(error.message),
+            color.black(error.message),
           )}`,
           'error',
         )

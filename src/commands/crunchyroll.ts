@@ -128,17 +128,17 @@ export default class Crunchyroll extends Command {
           if (flags.default) return
           return p.select({
             message: 'Have you downloaded a Crunchyroll cookie file?',
-            initialValue: false,
+            initialValue: 'false',
             maxItems: 3,
             options: [
-              { value: true, label: 'Yes' },
-              { value: false, label: 'No' },
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
             ],
           })
         },
         hasCookie: async ({ results }) => {
           const chosenDirName = results.dir ?? 'Crunchy'
-          const defaultCookie = results.cookie ?? false
+          const defaultCookie = results.cookie === 'true'
           let cookie = false
           const cookieDir = path.join(
             os.homedir(),
@@ -203,23 +203,23 @@ export default class Crunchyroll extends Command {
           if (flags.all_subs || flags.default) return
           return p.select({
             message: 'Would you like to download subtitles?',
-            initialValue: true,
+            initialValue: 'true',
             maxItems: 2,
             options: [
-              { value: true, label: 'Yes' },
-              { value: false, label: 'No' },
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
             ],
           })
         },
         hardSubs: async ({ results }) => {
-          if (flags.default || !results.subtitles) return
+          if (flags.default || results.subtitles === 'false') return
           return p.select({
             message: 'Would you like the subtitles to be hard coded?',
-            initialValue: false,
+            initialValue: 'false',
             maxItems: 2,
             options: [
-              { value: true, label: 'Yes' },
-              { value: false, label: 'No' },
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
             ],
           })
         },
@@ -227,16 +227,16 @@ export default class Crunchyroll extends Command {
           if (flags.default) return
           return p.select({
             message: 'Would you like to add any other params to the download?',
-            initialValue: false,
+            initialValue: 'false',
             maxItems: 2,
             options: [
-              { value: true, label: 'Yes' },
-              { value: false, label: 'No' },
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
             ],
           })
         },
         custom: ({ results }) => {
-          if (!results.more || flags.default) return
+          if (results.more === 'false' || flags.default) return
           return p.text({
             message: 'What other params would you like to add?',
           })
@@ -277,10 +277,8 @@ export default class Crunchyroll extends Command {
     }
 
     // Set download directory
-    const dwnDir = path.join(
-      os.homedir(),
-      `Movies/${defaults?.dir || opts.dir}`,
-    )
+    const dirName = defaults?.dir || opts.dir
+    const dwnDir = path.join(os.homedir(), `Movies/${dirName}`)
 
     // Format URL if not already formatted
     // Check if URL is already formatted with 'crunchyroll' in it
@@ -338,7 +336,11 @@ export default class Crunchyroll extends Command {
     }
 
     // Loop through custom commands added and format them to be valid args for yt-dlp
-    if (opts.custom && String(opts.custom).length > 0 && !flags.default) {
+    if (
+      opts.more === 'true' &&
+      String(opts.custom).length > 0 &&
+      !flags.default
+    ) {
       const emptyRest = rest
       const customOpts = String(opts.custom).trim()
       const flags = customOpts
@@ -355,11 +357,24 @@ export default class Crunchyroll extends Command {
       rest = emptyRest ? `${rest} ${flags}` : flags
     }
 
+    // If no cookie file end the cli
+    // Else run yt-dlp
+    if (!opts.hasCookie && opts.cookie === 'true' && !flags.default) {
+      outro(
+        `No cookie file found. Unable to download, please add a valid and up-to-date cookies file to the ${dirName} directory.`,
+        'error',
+      )
+      this.exit(1)
+    }
+
     const ytdlOpts = {
       location: dwnDir,
       url,
-      subs: defaults?.subtitles || flags.all_subs ? 'all' : opts.subtitles,
-      hardSubs: defaults?.hardSubs || opts.hardSubs,
+      subs:
+        defaults?.subtitles || flags.all_subs
+          ? 'all'
+          : opts.subtitles === 'true',
+      hardSubs: defaults?.hardSubs || opts.hardSubs === 'true',
       ...(rest && {
         rest,
       }),
@@ -395,7 +410,7 @@ export default class Crunchyroll extends Command {
         if (process.env.NODE_ENV === 'development') console.error(error)
         outro(
           `An error occurred. Unable to download due to the following error: ${color.underline(
-            color.white(error.message),
+            color.black(error.message),
           )}`,
           'error',
         )

@@ -8,7 +8,7 @@ import color from 'picocolors'
 import { checkDirExists, checkFileExists } from '../utils/check'
 import createDir from '../utils/createDir'
 import deleteOldCookies from '../utils/deleteCookie'
-import { ytdl } from '../utils/fetcher'
+import { LanguageProps, ytdl } from '../utils/fetcher'
 import outro from '../utils/outro'
 
 export default class Other extends Command {
@@ -212,11 +212,11 @@ export default class Other extends Command {
           if (flags.all_subs || flags.default) return
           return p.select({
             message: 'Would you like to download subtitles?',
-            initialValue: true,
+            initialValue: 'true',
             maxItems: 2,
             options: [
-              { value: true, label: 'Yes' },
-              { value: false, label: 'No' },
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
             ],
           })
         },
@@ -238,16 +238,16 @@ export default class Other extends Command {
           if (flags.default || results.enforceEng !== 'false') return
           return p.select({
             message: 'Would you like download in another language?',
-            initialValue: false,
+            initialValue: 'false',
             maxItems: 2,
             options: [
-              { value: true, label: 'Yes' },
-              { value: false, label: 'No' },
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
             ],
           })
         },
         otherLang: ({ results }) => {
-          if (flags.default || !results.lang) return
+          if (flags.default || results.lang === 'false') return
           return p.text({
             message: 'What language would you like to download in? (eg. jp)',
           })
@@ -256,16 +256,16 @@ export default class Other extends Command {
           if (flags.default) return
           return p.select({
             message: 'Would you like to add any other params to the download?',
-            initialValue: false,
+            initialValue: 'false',
             maxItems: 2,
             options: [
-              { value: true, label: 'Yes' },
-              { value: false, label: 'No' },
+              { value: 'true', label: 'Yes' },
+              { value: 'false', label: 'No' },
             ],
           })
         },
         custom: ({ results }) => {
-          if (!results.more || flags.default) return
+          if (results.more === 'false' || flags.default) return
           return p.text({
             message: 'What other params would you like to add?',
           })
@@ -335,11 +335,9 @@ export default class Other extends Command {
       rest = emptyRest ? `${rest} ${flags}` : flags
     }
 
-    const format = {
-      type: opts.enforceEng !== 'false' ? opts.enforceEng : 'language',
-      ...(opts.lang && {
-        custom: opts.otherLang
-      }),
+    const format: LanguageProps = {
+      type: opts.enforceEng !== 'false' ? String(opts.enforceEng) : 'language',
+      custom: String(opts.otherLang) ?? null,
       forceEn: opts.enforceEng !== 'false'
     }
 
@@ -347,7 +345,7 @@ export default class Other extends Command {
     // Else run yt-dlp
     if (!opts.hasCookie && opts.cookie === 'true' && !flags.default) {
       outro(
-        `Unable to download. Please add a valid and up-to-date cookies file to the ${dirName} directory.`,
+        `No cookie file found. Unable to download, please add a valid and up-to-date cookies file to the ${dirName} directory.`,
         'error',
       )
       this.exit(1)
@@ -396,7 +394,7 @@ export default class Other extends Command {
         if (process.env.NODE_ENV === 'development') console.error(error)
         outro(
           `An error occurred. Unable to download due to the following error: ${color.underline(
-            color.white(error.message),
+            color.black(error.message),
           )}`,
           'error',
         )

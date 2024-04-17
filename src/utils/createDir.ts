@@ -34,7 +34,9 @@ const createDir = (name: string) => {
     if (process.env.NODE_ENV === 'development') {
       console.error(error)
     } else {
-      color.bgRed(color.white(`  ${error.message}  `))
+      color.bgRed(
+        color.white(`  ${error instanceof Error ? error.message : 'error'}  `),
+      )
     }
   }
 
