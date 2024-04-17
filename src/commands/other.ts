@@ -336,8 +336,8 @@ export default class Other extends Command {
     }
 
     const format: LanguageProps = {
-      type: opts.enforceEng !== 'false' ? String(opts.enforceEng) : 'language',
-      custom: String(opts.otherLang) ?? null,
+      type: opts.enforceEng === 'false' ? 'language' : String(opts.enforceEng),
+      custom: String(opts.otherLang),
       forceEn: opts.enforceEng !== 'false',
     }
 
