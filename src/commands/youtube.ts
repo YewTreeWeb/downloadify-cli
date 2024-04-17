@@ -9,7 +9,16 @@ import createDir from '../utils/createDir'
 import { ytdl } from '../utils/fetcher'
 import outro from '../utils/outro'
 
+const baseUrl = 'https://www.youtube.com/'
+
 export default class Youtube extends Command {
+  static args = {
+    url: Args.string({
+      description: 'The URl of the videos you want to download',
+      required: true,
+    }),
+  }
+
   static description =
     'This command allows the user to download videos on YouTube'
 
@@ -40,13 +49,6 @@ export default class Youtube extends Command {
       char: 'v',
       description: 'If you want to include debug information in the output',
       required: false,
-    }),
-  }
-
-  static args = {
-    url: Args.string({
-      description: 'The URl of the videos you want to download',
-      required: true,
     }),
   }
 
@@ -189,6 +191,10 @@ export default class Youtube extends Command {
       `Movies/${defaults?.dir || opts.dir}`,
     )
 
+    const url = args.url.includes('youtube')
+      ? args.url
+      : `${baseUrl}${args.url}`
+
     /* Add arguments to the rest param */
     // Loop through the flags and any not in the ignore to the res variable
     let rest: null | string = null
@@ -219,7 +225,7 @@ export default class Youtube extends Command {
 
     const ytdlOpts = {
       location: dwnDir,
-      url: args.url,
+      url,
       subs: defaults?.subtitles || opts.subtitles,
       format: defaults?.enFormat || opts.enFormat,
       ...(rest && {

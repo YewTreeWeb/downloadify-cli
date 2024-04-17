@@ -1,16 +1,23 @@
 import * as p from '@clack/prompts'
 import { Args, Command, Flags } from '@oclif/core'
-import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import color from 'picocolors'
 
 import { checkDirExists } from '../utils/check'
 import createDir from '../utils/createDir'
-import outro from '../utils/outro'
 import { iplayerDl } from '../utils/fetcher'
+import outro from '../utils/outro'
 
 export default class Iplayer extends Command {
+  static args = {
+    pid: Args.string({
+      description:
+        'The PID of the videos you want to download. The BBC Programme Identifier can be found in the URL after "episode/"',
+      required: true,
+    }),
+  }
+
   static description =
     'The iPlayer command gives the user the ability to download videos from the iPlayer UK website by providing the PID of the show/episode.'
 
@@ -41,21 +48,9 @@ export default class Iplayer extends Command {
     }),
   }
 
-  static args = {
-    pid: Args.string({
-      description:
-        'The PID of the videos you want to download. The BBC Programme Identifier can be found in the URL after "episode/"',
-      required: true,
-    }),
-  }
-
   public async run(): Promise<void> {
     const { args, flags } = await this.parse(Iplayer)
     const sp = p.spinner()
-    const date = new Date()
-    const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1)
-      .toString()
-      .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
 
     console.clear()
     if (process.env.NODE_ENV === 'development')

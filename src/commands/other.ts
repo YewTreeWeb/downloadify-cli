@@ -234,6 +234,24 @@ export default class Other extends Command {
             ],
           })
         },
+        lang: ({ results }) => {
+          if (flags.default || results.enforceEng !== 'false') return
+          return p.select({
+            message: 'Would you like download in another language?',
+            initialValue: false,
+            maxItems: 2,
+            options: [
+              { value: true, label: 'Yes' },
+              { value: false, label: 'No' },
+            ],
+          })
+        },
+        otherLang: ({ results }) => {
+          if (flags.default || !results.lang) return
+          return p.text({
+            message: 'What language would you like to download in? (eg. jp)',
+          })
+        },
         more: () => {
           if (flags.default) return
           return p.select({
@@ -268,16 +286,26 @@ export default class Other extends Command {
       },
     )
 
+    let defaults = null
+    if (flags.default) {
+      defaults = {
+        dir: 'Videos',
+        cookie: 'skip',
+        subtitles: false,
+        enforceEng: false,
+        more: false,
+      }
+    }
+
     // If confirm is false
     if (!opts?.confirm) {
       outro('Download aborted! Thank you for using Downloadify.', 'abort')
       this.exit(1)
     }
 
-    // Ask where to download video
-    const dirName = opts.dir
     // Set download directory
-    const dwnDir = path.join(os.homedir(), `Movies/${String(dirName)}`)
+    const dirName = defaults?.dir || opts.dir
+    const dwnDir = path.join(os.homedir(), `Movies/${dirName}`)
 
     //* Add arguments to the rest param */
     // Loop through the flags and any not in the ignore to the res variable
@@ -307,23 +335,28 @@ export default class Other extends Command {
       rest = emptyRest ? `${rest} ${flags}` : flags
     }
 
+    const format = {
+      type: opts.enforceEng !== 'false' ? opts.enforceEng : 'language',
+      ...(opts.lang && {
+        custom: opts.otherLang
+      }),
+      forceEn: opts.enforceEng !== 'false'
+    }
+
     // If no cookie file end the cli
     // Else run yt-dlp
-    if (!opts.hasCookie && opts.cookie === 'true') {
+    if (!opts.hasCookie && opts.cookie === 'true' && !flags.default) {
       outro(
-        `Unable to download. Please add a valid and up-to-date cookies file to the ${String(
-          dirName,
-        )} directory.`,
+        `Unable to download. Please add a valid and up-to-date cookies file to the ${dirName} directory.`,
         'error',
       )
       this.exit(1)
-    } else {
-      let hasFailed: boolean | string = false
+    }
 
       const ytdlOpts = {
         location: dwnDir,
-        episode: Number(opts?.episodeNum) || null,
-        season: Number(opts?.seasonNum) || null,
+        episode: null,
+        season: null,
         ...(opts.cookie !== 'skip' &&
           !flags.default && {
             cookieFile: {
@@ -337,11 +370,10 @@ export default class Other extends Command {
             },
           }),
         url: args.url,
-        subs: flags.all_subs ? 'all' : opts.subtitles === 'true',
-        hardSubs: opts.hardSubs === 'true',
-        format: opts.enforceEng === 'format',
-        lang: opts.enforceEng === 'lang',
-        title: opts.enforceEng === 'title',
+        subs: defaults?.subtitles || flags.all_subs ? 'all' : opts.subtitles,
+        ...(!defaults?.enforceEng && {
+          format,
+        }),
         ...(rest && {
           rest,
         }),
@@ -350,23 +382,25 @@ export default class Other extends Command {
         sp.start('Downloading')
       }
 
-      await ytdl(ytdlOpts).catch((error) => {
-        if (process.env.NODE_ENV === 'development') console.error(error)
-        hasFailed = error.message
-      })
+      await ytdl(ytdlOpts).then(() => {
+        if (flags.quiet) sp.stop()
 
-      if (flags.quiet) {
-        sp.stop()
-      }
-
-      if (hasFailed) {
-        outro('An error occurred. Unable to download.', 'error')
-      } else {
         outro(
           'All downloads completed! Thank you for using Downloadify.',
           'success',
         )
-      }
+      })
+      .catch((error) => {
+        if (flags.quiet) sp.stop()
+
+        if (process.env.NODE_ENV === 'development') console.error(error)
+        outro(
+          `An error occurred. Unable to download due to the following error: ${color.underline(
+            color.white(error.message),
+          )}`,
+          'error',
+        )
+      })
     }
   }
 }
