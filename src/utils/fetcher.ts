@@ -74,6 +74,7 @@ export const ytdl = async ({
   url,
   verbose,
 }: YtdlOptions) => {
+  // const userAgent = 'Crunchyroll/1.8.0 Nintendo Switch/12.3.12.0 UE4/4.27'
   const userAgent =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
   // Get the location of ffmpeg
@@ -88,21 +89,14 @@ export const ytdl = async ({
         : []
   const cookies = cookieFile?.exists
     ? ['--cookies', String(cookieFile.path)]
-    : cookieFile?.exists
-      ? []
-      : [
-          '--cookies-from-browser',
-          'chrome',
-          '--cookies',
-          String(cookieFile?.path),
-        ]
+    : ['--cookies-from-browser', 'chrome']
 
   // Set format
   const formatType =
     typeof format === 'object' && format.type === 'title'
       ? '--match-title'
       : '--format'
-  let lang = format ? 'bv+ba[language*=en]' : ''
+  let lang = format ? 'bv+ba[language*=en-US]' : ''
   if (format && typeof format === 'object') {
     switch (format.type) {
       case 'id': {
@@ -135,7 +129,9 @@ export const ytdl = async ({
       formattedUrl,
       '--referer',
       formattedUrl,
-      ...(format ? [formatType, lang] : []),
+      // ...(format ? [formatType, lang] : ['--format', 'bv+ba[language*=en-US]']),
+      '-f',
+      'bv+ba[language*=en-US]',
       ...subtitles,
       ...(subs ? ['--embed-subs'] : []),
       '-o',

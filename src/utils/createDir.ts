@@ -13,9 +13,10 @@ import color from 'picocolors'
  */
 const createDir = (name: string, dest?: string, requireCookies = true) => {
   // Construct the directory path
-  const dir = path.join(os.homedir(), `${dest ?? 'Movies'}/${name}`)
+  const destination = `${dest ?? 'Movies'}`
+  const dir = path.join(os.homedir(), `${destination}/${name}`)
   const cookiesDir = requireCookies
-    ? path.join(os.homedir(), `${dest ?? 'Movies'}/${name}/cookies`)
+    ? path.join(os.homedir(), `${destination}/${name}/cookies`)
     : null
   let created = false
 
