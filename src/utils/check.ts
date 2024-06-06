@@ -59,7 +59,7 @@ export const checkFileExists = async (file: string): Promise<boolean> => {
   return exists
 }
 
-export const checkCookie = (chosenDirName: string) => {
+export const checkCookie = async (chosenDirName: string) => {
   let success = false
   let error = false
   let cookiePath = null
