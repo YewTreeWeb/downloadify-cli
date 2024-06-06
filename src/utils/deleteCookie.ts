@@ -8,10 +8,7 @@ import * as path from 'node:path'
  * @param {string} dirName - the name of the directory containing the cookies to be deleted
  * @return {void}
  */
-const deleteOldCookies = async (
-  cookieDir: string,
-  dirName: string,
-): Promise<void> => {
+const deleteOldCookies = async (cookieDir: string, dirName: string): Promise<void> => {
   // Get the directory path where the cookies are stored
   const directory = path.dirname(cookieDir)
 
@@ -20,15 +17,11 @@ const deleteOldCookies = async (
 
   // Filter files to only include cookies from other directories
   const otherCookieFiles = filesInDirectory.filter(
-    (fileName) =>
-      fileName !== path.basename(String(dirName)) &&
-      fileName.includes('cookies'),
+    (fileName) => fileName !== path.basename(String(dirName)) && fileName.includes('cookies'),
   )
 
   // Map the file names to their full path
-  const existingCookiePaths = otherCookieFiles.map((fileName) =>
-    path.join(directory, `${fileName}.txt`),
-  )
+  const existingCookiePaths = otherCookieFiles.map((fileName) => path.join(directory, `${fileName}.txt`))
 
   // If there are any cookies to delete
   if (otherCookieFiles.length > 0) {

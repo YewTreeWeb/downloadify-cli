@@ -15,9 +15,7 @@ const createDir = (name: string, dest?: string, requireCookies = true) => {
   // Construct the directory path
   const destination = `${dest ?? 'Movies'}`
   const dir = path.join(os.homedir(), `${destination}/${name}`)
-  const cookiesDir = requireCookies
-    ? path.join(os.homedir(), `${destination}/${name}/cookies`)
-    : null
+  const cookiesDir = requireCookies ? path.join(os.homedir(), `${destination}/${name}/cookies`) : null
   let created = false
 
   try {
@@ -39,9 +37,7 @@ const createDir = (name: string, dest?: string, requireCookies = true) => {
     if (process.env.NODE_ENV === 'development') {
       console.error(error)
     } else {
-      color.bgRed(
-        color.white(`  ${error instanceof Error ? error.message : 'error'}  `),
-      )
+      color.bgRed(color.white(`  ${error instanceof Error ? error.message : 'error'}  `))
     }
   }
 

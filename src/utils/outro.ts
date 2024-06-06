@@ -3,10 +3,7 @@ import color from 'picocolors'
 
 // Create an outro for the cli
 const outro = (msg: string, type: 'abort' | 'error' | 'success') => {
-  const colours: Record<
-    'abort' | 'error' | 'success',
-    (text: string) => string
-  > = {
+  const colours: Record<'abort' | 'error' | 'success', (text: string) => string> = {
     abort: (text) => color.bgMagenta(color.black(text)),
     error: (text) => color.bgRed(color.black(text)),
     success: (text) => color.bgMagenta(color.black(text)),

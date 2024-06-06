@@ -1,14 +1,9 @@
-import { exit } from '@oclif/core/lib/errors'
-import {
-  ChildProcessWithoutNullStreams,
-  SpawnOptions,
-  spawn,
-} from 'node:child_process'
-import { sync } from 'which'
+import {exit} from '@oclif/core/lib/errors'
+import {ChildProcessWithoutNullStreams, SpawnOptions, spawn} from 'node:child_process'
+import {sync} from 'which'
 
 export type LanguageProps = {
-  custom?: null | string
-  forceEn?: boolean
+  lang?: 'en' | 'jp' | string
   type: string
 }
 
@@ -51,7 +46,7 @@ const findFFmpegLocation = () => {
   const defaultPath = '/opt/homebrew/bin/ffmpeg'
   let path = ''
   try {
-    const found = sync('ffmpeg', { nothrow: true })
+    const found = sync('ffmpeg', {nothrow: true})
     path = found && found !== defaultPath ? found : defaultPath
   } catch (error) {
     if (process.env.NODE_ENV === 'development') console.error(error)
@@ -74,49 +69,42 @@ export const ytdl = async ({
   url,
   verbose,
 }: YtdlOptions) => {
-  // const userAgent = 'Crunchyroll/1.8.0 Nintendo Switch/12.3.12.0 UE4/4.27'
   const userAgent =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
   // Get the location of ffmpeg
   const ffmpegPath = findFFmpegLocation()
   // Format the URL, season and episode into one string
   const formattedUrl = `${url}${season || ''}${episode || ''}`
-  const subtitles =
-    subs && subs === 'all'
-      ? ['--sub-langs', 'all']
-      : subs
-        ? ['--sub-langs', 'en.*']
-        : []
-  const cookies = cookieFile?.exists
-    ? ['--cookies', String(cookieFile.path)]
-    : ['--cookies-from-browser', 'chrome']
+  const subtitles = subs && subs === 'all' ? ['--sub-langs', 'all'] : subs ? ['--sub-langs', 'en.*'] : []
+  const cookies = cookieFile?.exists ? ['--cookies', String(cookieFile.path)] : ['--cookies-from-browser', 'chrome']
 
   // Set format
   const formatType =
     typeof format === 'object' && format.type === 'title'
       ? '--match-title'
-      : '--format'
-  let lang = format ? 'bv+ba[language*=en-US]' : ''
+      : typeof format === 'boolean' && format
+      ? '-f'
+      : []
+  let lang = typeof format === 'boolean' && format ? 'bv+ba[language*=en]' : []
   if (format && typeof format === 'object') {
     switch (format.type) {
       case 'id': {
-        lang = `best[format_id*=${format.forceEn ? 'en' : format.custom}]`
+        lang = `best[format_id*=${format.lang}]`
         break
       }
 
       case 'title': {
-        lang = `${format.forceEn ? '(English Dub)' : format.custom}`
+        lang = `${format.lang === 'en' || format.lang === 'English' ? '(English Dub)' : format.lang}`
         break
       }
 
-      case 'language': {
-        lang =
-          format.forceEn || !format.custom
-            ? 'bv+ba[language*=en]'
-            : format.custom === 'multi'
-              ? 'bv*+mergeall[vcodec=none]'
-              : `bv+ba[language*=${format.custom}]`
+      case 'multi': {
+        lang = 'bv*+mergeall[vcodec=none]'
+        break
+      }
 
+      default: {
+        lang = `bv+ba[language*=${format.lang}]`
         break
       }
     }
@@ -129,16 +117,13 @@ export const ytdl = async ({
       formattedUrl,
       '--referer',
       formattedUrl,
-      // ...(format ? [formatType, lang] : ['--format', 'bv+ba[language*=en-US]']),
-      '-f',
-      'bv+ba[language*=en-US]',
+      ...formatType,
+      ...lang,
       ...subtitles,
       ...(subs ? ['--embed-subs'] : []),
       '-o',
       `${location}/%(series)s/Season%(season_number)s/%(series)s-S%(season_number)sE%(episode_number)s-%(episode)s.%(ext)s`,
-      ...(typeof format === 'object' && format.custom === 'multi'
-        ? '--audio-multistreams'
-        : []),
+      ...(typeof format === 'object' && format.type === 'multi' ? '--audio-multistreams' : []),
       '--ffmpeg-location',
       ffmpegPath,
       // Add additional arguments
@@ -147,15 +132,13 @@ export const ytdl = async ({
       // Use the dynamically retrieved user agent
       userAgent,
       // Hard code the subtitles into the video
-      ...(hardSubs
-        ? ['--extractor-args', 'crunchyrollbeta:hardsub=en-US']
-        : []),
+      ...(hardSubs ? ['--extractor-args', 'crunchyrollbeta:hardsub=en-US'] : []),
       // Enable quiet mode
       ...(quiet && !verbose ? ['--quiet', '--no-warnings', '--progress'] : []),
       // Enable verbose output
       ...(verbose ? ['--verbose'] : []),
     ],
-    { stdio: 'inherit' },
+    {stdio: 'inherit'},
   )
 
   if (process.env.NODE_ENV === 'development') console.info(ytdlProcess)
@@ -182,13 +165,13 @@ export const ytdl = async ({
 }
 
 export const dwnManga = async ({
-  location,
-  url,
-  language,
   filter,
-  rest,
+  language,
+  location,
   quiet = false,
-}: DwnMangaProps & { quiet?: boolean }) => {
+  rest,
+  url,
+}: {quiet?: boolean} & DwnMangaProps) => {
   const args = [
     '--language',
     language,
@@ -241,13 +224,7 @@ export const dwnManga = async ({
   })
 }
 
-export const iplayerDl = async ({
-  location,
-  pid,
-  season,
-  subs = false,
-  rest,
-}: IPlayerProps) => {
+export const iplayerDl = async ({location, pid, rest, season, subs = false}: IPlayerProps) => {
   const iPlayerProcess = spawn(
     'get_iplayer',
     [
@@ -266,7 +243,7 @@ export const iplayerDl = async ({
       // Add additional arguments
       ...(rest ? [rest] : []),
     ],
-    { stdio: rest?.includes('quiet') ? ['pipe', 'pipe', 'pipe'] : 'inherit' },
+    {stdio: rest?.includes('quiet') ? ['pipe', 'pipe', 'pipe'] : 'inherit'},
   )
 
   if (process.env.NODE_ENV === 'development') console.info(iPlayerProcess)

@@ -1,4 +1,4 @@
-const getName = (url: string, pattern: RegExp): string | null => {
+const getName = (url: string, pattern: RegExp): null | string => {
   let name = null
   // Function to extract the last part of the URL
   const match = url.match(pattern)

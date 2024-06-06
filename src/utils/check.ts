@@ -1,3 +1,4 @@
+import dayjs from 'dayjs'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -56,4 +57,44 @@ export const checkFileExists = async (file: string): Promise<boolean> => {
 
   // Return true if the file exists
   return exists
+}
+
+export const checkCookie = (chosenDirName: string) => {
+  let success = false
+  let error = false
+  let cookiePath = null
+  const cookieDir = path.join(os.homedir(), `Movies/${chosenDirName}/cookies`)
+  const date = new Date()
+  const formattedDate = dayjs(date).format('DD-MM-YYYY')
+
+  const downloadedCookie = path.join(os.homedir(), `Downloads/www.crunchyroll.com_cookies.txt`)
+  const formattedCookieFile = `${cookieDir}/cookies-${formattedDate}.txt`
+
+  // Move cookie file from Downloads
+  // rename file to have date
+  const hasDownloadedCookie = await checkFileExists(downloadedCookie)
+  if (hasDownloadedCookie) {
+    fs.rename(downloadedCookie, formattedCookieFile, (err) => {
+      if (process.env.NODE_ENV === 'development') console.error(err)
+    })
+  }
+
+  const cookieCheck = (await checkFileExists(formattedCookieFile)) || (await checkFileExists(downloadedCookie))
+
+  if (cookieCheck) {
+    // If cookie file found
+    cookie = true
+    p.log.step(
+      `${color.bgGreen(
+        color.black(` Success an up to date cookie file was found in the ${chosenDirName} directory `),
+      )}`,
+    )
+  } else {
+    // If no cookie file found
+    p.log.step(
+      `${color.bgRed(color.black(` Failed to find an up to date cookie file in the ${chosenDirName} directory `))}`,
+    )
+  }
+
+  return { success, error, cookiePath }
 }

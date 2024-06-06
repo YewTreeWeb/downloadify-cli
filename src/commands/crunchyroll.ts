@@ -1,32 +1,33 @@
+import {Args, Command, Flags} from '@oclif/core'
 import * as p from '@clack/prompts'
-import { Args, Command, Flags } from '@oclif/core'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import color from 'picocolors'
 
-import { checkDirExists, checkFileExists } from '../utils/check'
+import {checkDirExists, checkFileExists} from '../utils/check'
 import createDir from '../utils/createDir'
 import deleteOldCookies from '../utils/deleteCookie'
-import { ytdl } from '../utils/fetcher'
+import {ytdl} from '../utils/fetcher'
 import outro from '../utils/outro'
 
 export default class Crunchyroll extends Command {
-  static args = {
+  static override args = {
     url: Args.string({
       description: 'The URL of the show you would like to download',
       required: true,
     }),
   }
 
-  static description =
+  static override description =
     'The crunchyroll command gives the user the ability to download videos from the Crunchyroll website.'
 
-  static examples = [
+  static override examples = [
     'downloadify crunchyroll https://www.crunchyroll.com/series/GYEXQKJG6/dr-stone',
+    'downloadify crunchyroll GYEXQKJG6/dr-stone -s',
   ]
 
-  static flags = {
+  static override flags = {
     all_subs: Flags.boolean({
       char: 'a',
       description: 'Download all available subtitles',
@@ -44,8 +45,7 @@ export default class Crunchyroll extends Command {
     }),
     quiet: Flags.boolean({
       char: 'q',
-      description:
-        "Don't print the output of the downloading process to the terminal",
+      description: "Don't print the output of the downloading process to the terminal",
       required: false,
     }),
     verbose: Flags.boolean({
@@ -61,16 +61,12 @@ export default class Crunchyroll extends Command {
   }
 
   public async run(): Promise<void> {
-    const { args, flags } = await this.parse(Crunchyroll)
+    const {args, flags} = await this.parse(Crunchyroll)
+
     const sp = p.spinner()
-    const date = new Date()
-    const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1)
-      .toString()
-      .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
 
     console.clear()
-    if (process.env.NODE_ENV === 'development')
-      p.intro(`${color.bgGreen(color.white(' Dev Mode Active '))}`)
+    if (process.env.NODE_ENV === 'development') p.intro(`${color.bgGreen(color.white(' Dev Mode Active '))}`)
 
     p.intro(`${color.bgMagenta(color.black(' Crunchyroll '))}`)
     const opts = await p.group(
@@ -83,143 +79,68 @@ export default class Crunchyroll extends Command {
             validate: (value) => {
               const regex = /^[A-Za-z-]+$/
               if (!value) return 'Please enter a directory'
-              if (!regex.test(value))
-                return 'Directory name may only contain letters and dashes'
+              if (!regex.test(value)) return 'Directory name may only contain letters and dashes'
             },
           })
-        },
-        hasDir: async ({ results }) => {
-          const chosenDirName = results.dir ?? 'Crunchy'
-          // Check to see if directory exists
-          const dirExists = await checkDirExists(`Movies/${chosenDirName}`)
-          let dirCreated = false
-          // If directory doesn't exist create it
-          // Else once directory is created, notify user
-          if (dirExists) {
-            dirCreated = !dirCreated
-            p.log.step(
-              `${color.bgGreen(
-                color.black(` Found directory ${chosenDirName} `),
-              )}`,
-            )
-          } else {
-            p.log.step(
-              `${color.bgRed(
-                color.white(`  Directory ${chosenDirName} does not exist  `),
-              )}`,
-            )
-
-            // Show spinner while directory is being created
-            sp.start(`Now creating ${chosenDirName}`)
-            await createDir(chosenDirName)
-            sp.stop()
-
-            dirCreated = !dirCreated
-            p.log.step(
-              `${color.bgGreen(
-                color.black(` Successfully created ${chosenDirName} `),
-              )}`,
-            )
-          }
-
-          return dirCreated
         },
         cookie: () => {
           if (flags.default) return
           return p.select({
             message: 'Have you downloaded a Crunchyroll cookie file?',
             initialValue: 'false',
-            maxItems: 3,
+            maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              {value: 'true', label: 'Yes'},
+              {value: 'false', label: 'No'},
             ],
           })
         },
-        hasCookie: async ({ results }) => {
-          const chosenDirName = results.dir ?? 'Crunchy'
-          const defaultCookie = results.cookie === 'true'
-          let cookie = false
-          const cookieDir = path.join(
-            os.homedir(),
-            `Movies/${chosenDirName}/cookies`,
-          )
-          // Remove outdated cookies
-          deleteOldCookies(cookieDir, chosenDirName)
-
-          // Display warning message
-          if (!defaultCookie) {
-            p.log.step(
-              'An attempt to downloaded cookies automatically will start soon. Please make sure the website you are downloading from is open in Chrome',
-            )
-          }
-
-          // Skip to next command if previous isn't true
-          if (!defaultCookie) return
-
-          const downloadedCookie = path.join(
-            os.homedir(),
-            `Downloads/www.crunchyroll.com_cookies.txt`,
-          )
-          const formattedCookieFile = `${cookieDir}/cookies-${formattedDate}.txt`
-
-          // Move cookie file from Downloads
-          // rename file to have date
-          const hasDownloadedCookie = await checkFileExists(downloadedCookie)
-          if (hasDownloadedCookie) {
-            fs.rename(downloadedCookie, formattedCookieFile, (err) => {
-              if (process.env.NODE_ENV === 'development') console.error(err)
-            })
-          }
-
-          const cookieCheck =
-            (await checkFileExists(formattedCookieFile)) ||
-            (await checkFileExists(downloadedCookie))
-
-          if (cookieCheck) {
-            // If cookie file found
-            cookie = true
-            p.log.step(
-              `${color.bgGreen(
-                color.black(
-                  ` Success an up to date cookie file was found in the ${chosenDirName} directory `,
-                ),
-              )}`,
-            )
-          } else {
-            // If no cookie file found
-            p.log.step(
-              `${color.bgRed(
-                color.black(
-                  ` Failed to find an up to date cookie file in the ${chosenDirName} directory `,
-                ),
-              )}`,
-            )
-          }
-
-          return cookie
+        format: async () => {
+          if (flags.default) return
+          return p.select({
+            message: 'What format would you like to download the video in?',
+            initialValue: 'lang',
+            maxItems: 2,
+            options: [
+              {value: 'lang', label: 'Language'},
+              {value: 'title', label: 'Title'},
+              {value: 'multi', label: 'Multiple'},
+            ],
+          })
         },
-        subtitles: async () => {
-          if (flags.all_subs || flags.default) return
+        language: async ({results}) => {
+          if (flags.default || results.format === 'multi') return
+          return p.select({
+            message: 'What format would you like to download the video in?',
+            initialValue: 'en',
+            maxItems: 2,
+            options: [
+              {value: 'en', label: 'English'},
+              {value: 'jp', label: 'Japanese'},
+            ],
+          })
+        },
+        subtitles: async ({results}) => {
+          if (flags.all_subs || flags.default || results.format === 'multi' || results.language === 'jp') return
           return p.select({
             message: 'Would you like to download subtitles?',
             initialValue: 'true',
             maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              {value: 'true', label: 'Yes'},
+              {value: 'false', label: 'No'},
             ],
           })
         },
-        hardSubs: async ({ results }) => {
+        hardSubs: async ({results}) => {
           if (flags.default || results.subtitles === 'false') return
           return p.select({
             message: 'Would you like the subtitles to be hard coded?',
             initialValue: 'false',
             maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              {value: 'true', label: 'Yes'},
+              {value: 'false', label: 'No'},
             ],
           })
         },
@@ -230,32 +151,28 @@ export default class Crunchyroll extends Command {
             initialValue: 'false',
             maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              {value: 'true', label: 'Yes'},
+              {value: 'false', label: 'No'},
             ],
           })
         },
-        custom: ({ results }) => {
+        custom: ({results}) => {
           if (results.more === 'false' || flags.default) return
           return p.text({
             message: 'What other params would you like to add?',
           })
         },
-        confirm: ({ results }) => {
+        confirm: ({results}) => {
           if (flags.default) return
           return p.confirm({
-            message: results.hasDir
-              ? `Download videos to ${results.dir}?`
-              : 'Confirm settings?',
+            message: `Download videos to ${results.dir}?`,
             initialValue: true,
           })
         },
       },
       {
         onCancel: () => {
-          p.cancel(
-            color.bgMagenta(color.black('  Crunchyroll download cancelled  ')),
-          )
+          p.cancel(color.bgMagenta(color.black('  Crunchyroll download cancelled  ')))
           this.exit(0)
         },
       },
@@ -265,8 +182,13 @@ export default class Crunchyroll extends Command {
     if (flags.default) {
       defaults = {
         dir: 'Crunchy',
+        cookie: false,
         subtitles: false,
         hardSubs: false,
+        format: {
+          type: 'lang',
+          lang: 'en-US',
+        },
       }
     }
 
@@ -279,6 +201,19 @@ export default class Crunchyroll extends Command {
     // Set download directory
     const dirName = defaults?.dir || opts.dir
     const dwnDir = path.join(os.homedir(), `Movies/${dirName}`)
+
+    // Check if the cookie file exists
+    // If file does not exist, exit the program
+    const hasCookie = await checkFileExists(dwnDir)
+    if (opts.cookie === 'true' && !flags.default) {
+      if (!hasCookie) {
+        this.error(`No cookie file found. Unable to download, please add a valid and up-to-date cookies file to the ${dwnDir}.`, {exit: 1})
+      }
+    } else {
+      p.log.step(
+        'An attempt to downloaded cookies automatically will start soon. Please make sure the website you are downloading from is open in Chrome',
+      )
+    }
 
     // Format URL if not already formatted
     // Check if URL is already formatted with 'crunchyroll' in it
@@ -322,25 +257,14 @@ export default class Crunchyroll extends Command {
     // Loop through the flags and any not in the ignore to the res variable
     let rest: null | string = null
     if (Object.keys(flags).length > 0) {
-      const dismiss = new Set([
-        'all_subs',
-        'filter',
-        'quiet',
-        'default',
-        'verbose',
-        'season',
-      ])
+      const dismiss = new Set(['all_subs', 'filter', 'quiet', 'default', 'verbose', 'season'])
       rest = Object.keys(flags)
         .map((key) => (dismiss.has(key) ? '' : `--${key}`))
         .join(' ')
     }
 
     // Loop through custom commands added and format them to be valid args for yt-dlp
-    if (
-      opts.more === 'true' &&
-      String(opts.custom).length > 0 &&
-      !flags.default
-    ) {
+    if (opts.more === 'true' && String(opts.custom).length > 0 && !flags.default) {
       const emptyRest = rest
       const customOpts = String(opts.custom).trim()
       const flags = customOpts
@@ -356,64 +280,5 @@ export default class Crunchyroll extends Command {
         .join(' ')
       rest = emptyRest ? `${rest} ${flags}` : flags
     }
-
-    // If no cookie file end the cli
-    // Else run yt-dlp
-    if (!opts.hasCookie && opts.cookie === 'true' && !flags.default) {
-      outro(
-        `No cookie file found. Unable to download, please add a valid and up-to-date cookies file to the ${dirName} directory.`,
-        'error',
-      )
-      this.exit(1)
-    }
-
-    const ytdlOpts = {
-      location: dwnDir,
-      url,
-      subs:
-        defaults?.subtitles || flags.all_subs
-          ? 'all'
-          : opts.subtitles === 'true',
-      hardSubs: defaults?.hardSubs || opts.hardSubs === 'true',
-      ...(rest && {
-        rest,
-      }),
-      ...(flags.quiet && {
-        quiet: flags.quiet,
-      }),
-      ...(flags.verbose && {
-        verbose: flags.verbose,
-      }),
-    }
-    if (flags.quiet && !flags.verbose) {
-      sp.start(`Downloading ${dwnName}`)
-    }
-
-    await ytdl(ytdlOpts)
-      .then(() => {
-        if (flags.quiet && !flags.verbose) {
-          sp.stop()
-        }
-
-        outro(
-          `All downloads completed! Thank you for using Downloadify. Completed downloading - ${color.underline(
-            color.black(dwnName),
-          )}`,
-          'success',
-        )
-      })
-      .catch((error) => {
-        if (flags.quiet && !flags.verbose) {
-          sp.stop()
-        }
-
-        if (process.env.NODE_ENV === 'development') console.error(error)
-        outro(
-          `An error occurred. Unable to download due to the following error: ${color.underline(
-            color.black(error.message),
-          )}`,
-          'error',
-        )
-      })
   }
 }
