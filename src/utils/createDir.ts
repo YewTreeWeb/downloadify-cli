@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import color from 'picocolors'
+import * as p from '@clack/prompts'
 
 /**
  * Construct the directory path and create necessary directories if they don't exist.
@@ -16,8 +17,10 @@ const createDir = (name: string, dest?: string, requireCookies = true) => {
   const destination = `${dest ?? 'Movies'}`
   const dir = path.join(os.homedir(), `${destination}/${name}`)
   const cookiesDir = requireCookies ? path.join(os.homedir(), `${destination}/${name}/cookies`) : null
-  let created = false
-
+  let success = false
+  let error: boolean | string = false
+  const sp = p.spinner()
+  sp.start(`Now creating ${name}`)
   try {
     // Check if the directory exists
     if (!fs.existsSync(dir)) {
@@ -31,17 +34,20 @@ const createDir = (name: string, dest?: string, requireCookies = true) => {
       fs.mkdirSync(String(cookiesDir))
     }
 
-    created = !created
-  } catch (error) {
+    success = true
+  } catch (err) {
     // If there is an error log it
     if (process.env.NODE_ENV === 'development') {
-      console.error(error)
-    } else {
-      color.bgRed(color.white(`  ${error instanceof Error ? error.message : 'error'}  `))
+      console.error(err)
     }
+
+    error = err instanceof Error ? err.message : true
   }
 
-  return created
+  // Stop the spinner
+  sp.stop()
+
+  return {success, error}
 }
 
 export default createDir

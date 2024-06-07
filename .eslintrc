@@ -34,6 +34,7 @@
     "complexity": "off",
     "perfectionist/sort-objects": "off",
     "object-shorthand": "off",
+    "unicorn/catch-error-name": "off",
     "unicorn/filename-case": [
       "error",
       {

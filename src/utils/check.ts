@@ -4,9 +4,9 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 
 export type CheckCookieProps = {
-  success: boolean
+  cookiePath?: null | string
   error: boolean
-  cookiePath?: string | null
+  success: boolean
 }
 
 /**
@@ -17,15 +17,14 @@ export type CheckCookieProps = {
  */
 export const checkDirExists = async (dir: string): Promise<boolean> => {
   // Expand the path to include the home directory
-  const expandedPath = path.join(os.homedir(), dir)
   let exists = false
 
   // Try to access the directory
   try {
-    await fs.promises.access(expandedPath)
+    await fs.promises.access(dir)
 
     // Check if the directory exists
-    const stats = await fs.promises.lstat(expandedPath)
+    const stats = await fs.promises.lstat(dir)
 
     // If it is a directory return true, otherwise false
     exists = stats.isDirectory()
@@ -90,6 +89,7 @@ export const checkCookie = async (
       if (process.env.NODE_ENV === 'development') console.error(err)
     })
     success = true
+    cookiePath = formattedCookieFile
   } else {
     error = true
   }

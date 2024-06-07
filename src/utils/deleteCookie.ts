@@ -1,37 +1,30 @@
-import * as fs from 'node:fs'
+import dayjs from 'dayjs'
+import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 
-/**
- * Delete older cookie files
- *
- * @param {string} cookieDir - the directory path where the cookies are stored
- * @param {string} dirName - the name of the directory containing the cookies to be deleted
- * @return {void}
- */
-const deleteOldCookies = async (cookieDir: string, dirName: string): Promise<void> => {
-  // Get the directory path where the cookies are stored
-  const directory = path.dirname(cookieDir)
+const deleteOldCookies = async (dir: string): Promise<void> => {
+  const cookiesDir = path.join(dir, 'cookies')
+  const date = dayjs(new Date()).format('DD-MM-YYYY')
 
-  // List all files in the directory
-  const filesInDirectory = await fs.promises.readdir(directory)
+  try {
+    const filesInDirectory = await fs.readdir(cookiesDir)
 
-  // Filter files to only include cookies from other directories
-  const otherCookieFiles = filesInDirectory.filter(
-    (fileName) => fileName !== path.basename(String(dirName)) && fileName.includes('cookies'),
-  )
+    // Filter files to only include cookies that don't match the current date
+    const oldCookieFiles = filesInDirectory.filter(
+      (fileName) => !fileName.includes(date) && fileName.includes('cookies'),
+    )
 
-  // Map the file names to their full path
-  const existingCookiePaths = otherCookieFiles.map((fileName) => path.join(directory, `${fileName}.txt`))
+    // Map the file names to their full path
+    const oldCookiePaths = oldCookieFiles.map((fileName) => path.join(cookiesDir, fileName))
 
-  // If there are any cookies to delete
-  if (otherCookieFiles.length > 0) {
-    // Loop through each cookie file and delete it
-    for (const file of existingCookiePaths) {
-      fs.unlink(file, (error) => {
-        // If in development mode log the error
-        if (process.env.NODE_ENV === 'development') console.error(error)
-      })
+    // If there are any old cookies to delete
+    if (oldCookiePaths.length > 0) {
+      // Delete each old cookie file
+      await Promise.all(oldCookiePaths.map((file) => fs.unlink(file)))
     }
+  } catch (error) {
+    // Log any errors that occurred
+    console.error('Error deleting old cookies:', error)
   }
 }
 

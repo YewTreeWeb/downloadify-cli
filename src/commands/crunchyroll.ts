@@ -1,6 +1,6 @@
-import { Args, Command, Flags } from '@oclif/core'
 import * as p from '@clack/prompts'
-import * as fs from 'node:fs'
+import { Args, Command, Flags } from '@oclif/core'
+import dayjs from 'dayjs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import color from 'picocolors'
@@ -8,9 +8,7 @@ import color from 'picocolors'
 import { checkCookie, checkDirExists, checkFileExists } from '../utils/check'
 import createDir from '../utils/createDir'
 import deleteOldCookies from '../utils/deleteCookie'
-import { ytdl } from '../utils/fetcher'
 import outro from '../utils/outro'
-import dayjs from 'dayjs'
 
 export default class Crunchyroll extends Command {
   static override args = {
@@ -41,7 +39,12 @@ export default class Crunchyroll extends Command {
     }),
     filter: Flags.string({
       char: 'f',
-      description: 'Download a range of episodes e.g. S1-S3,S4E2-S4E6',
+      description: 'Download video based on title or language',
+      required: false,
+    }),
+    language: Flags.string({
+      char: 'l',
+      description: 'Download video based on language (e.g. en, ja, fr, etc.)',
       required: false,
     }),
     quiet: Flags.boolean({
@@ -87,6 +90,24 @@ export default class Crunchyroll extends Command {
             },
           })
         },
+        username: () => {
+          if (flags.default) return
+          return p.text({
+            message: 'What is your Crunchyroll username?',
+            validate: (value) => {
+              if (!value) return 'Please enter a username'
+            }
+          })
+        },
+        password: () => {
+          if (flags.default) return
+          return p.password({
+            message: 'What is your Crunchyroll password?',
+            validate: (value) => {
+              if (!value) return 'Please enter a password'
+            }
+          })
+        },
         cookie: () => {
           if (flags.default) return
           return p.select({
@@ -103,17 +124,30 @@ export default class Crunchyroll extends Command {
           if (flags.default) return
           return p.select({
             message: 'What format would you like to download the video in?',
-            initialValue: 'lang',
-            maxItems: 2,
+            initialValue: 'quality',
+            maxItems: 3,
             options: [
-              { value: 'lang', label: 'Language' },
-              { value: 'title', label: 'Title' },
+              { value: 'id', label: 'ID' },
+              { value: 'quality', label: 'Quality' },
               { value: 'multi', label: 'Multiple' },
             ],
           })
         },
+        filter: async ({results}) => {
+          if (flags.default || flags.filter || results.format === 'multi') return
+          return p.select({
+            message: 'What format would you like to download the video in?',
+            initialValue: 'lang',
+            maxItems: 3,
+            options: [
+              { value: 'lang', label: 'Language' },
+              { value: 'title', label: 'Title' },
+              { value: 'skip', label: 'Skip' },
+            ],
+          })
+        },
         language: async ({ results }) => {
-          if (flags.default || results.format === 'multi') return
+          if (flags.default || flags.language || results.format === 'multi' || results.filter === 'skip' && results.format !== 'id') return
           return p.select({
             message: 'What format would you like to download the video in?',
             initialValue: 'en',
@@ -197,10 +231,9 @@ export default class Crunchyroll extends Command {
         cookie: false,
         subtitles: false,
         hardSubs: false,
-        format: {
-          type: 'lang',
-          lang: 'en-US',
-        },
+        format: 'quality',
+        filter: 'lang',
+        language: 'en',
       }
     }
 
@@ -215,6 +248,14 @@ export default class Crunchyroll extends Command {
     const dwnDir = path.join(os.homedir(), `Movies/${dirName}`)
     // Get the name of the video
     const dwnName = args.url.split('/').at(-1) ?? ''
+
+    // Check if the directory exists
+    const dirExists = await checkDirExists(dwnDir)
+    if (!dirExists) {
+      const { success, error } = await createDir(dirName)
+      if (error) this.error(`Failed to create directory ${dirName}: ${error}`, { exit: 1 })
+      if (success) p.log.step(`Created directory ${dirName}`)
+    }
 
     // Format URL if not already formatted
     // Check if URL is already formatted with 'crunchyroll' in it
@@ -257,13 +298,14 @@ export default class Crunchyroll extends Command {
     let cookiePath = null
     const hasCookie = await checkCookie(dirName, baseUrlNoLastSlash)
     if (opts.cookie === 'true' && !flags.default) {
+      deleteOldCookies(dwnDir)
+
       if (hasCookie.error) {
         this.error(
           `Failed to find an up to date cookie file in the ${dwnDir}.`,
           { exit: 1 },
         )
-      }
-      if (hasCookie.success) {
+      } else if (hasCookie.success) {
         cookiePath = hasCookie.cookiePath
         p.log.step(
           `${color.bgGreen(
@@ -284,7 +326,6 @@ export default class Crunchyroll extends Command {
         )
       }
     }
-    console.log(cookiePath)
 
     /* Add arguments to the rest param */
     // Loop through the flags and any not in the ignore to the res variable
@@ -324,5 +365,30 @@ export default class Crunchyroll extends Command {
         .join(' ')
       rest = emptyRest ? `${rest} ${flags}` : flags
     }
+
+    const ytdlParams = {
+      location: dwnDir,
+      username: opts.username,
+      password: opts.password,
+      cookieFile: {
+        exists: defaults?.cookie || opts.cookie === 'true' && cookiePath,
+        ...(cookiePath && { path: cookiePath }),
+      },
+      filter: defaults?.filter || (flags.filter ?? opts.filter),
+      format: defaults?.format || opts.format,
+      language: defaults?.language || (flags.language ?? opts.language),
+      subs: defaults?.subtitles || (flags.all_subs ? 'all' : opts.subtitles),
+      hardSubs: defaults?.hardSubs || opts.hardSubs,
+      url,
+      ...(rest && {rest}),
+      ...(flags.quiet && {quiet: flags.quiet}),
+      ...(flags.verbose && {verbose: flags.verbose}),
+    }
+
+    // Start the spinner
+    if (flags.quiet && !flags.verbose) sp.start(`Downloading ${dwnName}`)
+
+
+
   }
 }

@@ -1,26 +1,25 @@
-import {exit} from '@oclif/core/lib/errors'
-import {ChildProcessWithoutNullStreams, SpawnOptions, spawn} from 'node:child_process'
-import {sync} from 'which'
-
-export type LanguageProps = {
-  lang?: 'en' | 'jp' | string
-  type: string
-}
+import { exit } from '@oclif/core/lib/errors'
+import { ChildProcessWithoutNullStreams, SpawnOptions, spawn } from 'node:child_process'
+import { sync } from 'which'
 
 type YtdlOptions = {
-  cookieFile?: {
-    exists?: boolean
+  cookieFile: {
+    exists: boolean
     path?: string
   }
   episode?: null | number | string
-  format?: LanguageProps | boolean
+  filter?: 'lang' | 'skip' | 'title'
+  format?: 'id' | 'multi' | 'quality'
   hardSubs?: boolean
+  language?: 'en' | 'jp' | null
   location: string
+  password?: null | string
   quiet?: boolean
   rest?: null | string
   season?: null | number | string
   subs?: boolean | string
   url: string
+  username?: null | string
   verbose?: boolean
 }
 
@@ -59,14 +58,18 @@ const findFFmpegLocation = () => {
 export const ytdl = async ({
   cookieFile,
   episode,
-  format,
+  filter = 'lang',
+  format = 'quality',
   hardSubs = false,
+  language = 'en',
   location,
+  password,
   quiet,
   rest,
   season,
   subs = false,
   url,
+  username,
   verbose,
 }: YtdlOptions) => {
   const userAgent =
@@ -79,46 +82,57 @@ export const ytdl = async ({
   const cookies = cookieFile?.exists ? ['--cookies', String(cookieFile.path)] : ['--cookies-from-browser', 'chrome']
 
   // Set format
-  const formatType =
-    typeof format === 'object' && format.type === 'title'
-      ? '--match-title'
-      : typeof format === 'boolean' && format
-      ? '-f'
-      : []
-  let lang = typeof format === 'boolean' && format ? 'bv+ba[language*=en]' : []
-  if (format && typeof format === 'object') {
-    switch (format.type) {
-      case 'id': {
-        lang = `best[format_id*=${format.lang}]`
-        break
-      }
+  let formatType = ''
+  switch (format) {
+    case 'id': {
+      formatType = `bv+ba[format_id*=${language ?? 'en'}]`
+      break
+    }
 
-      case 'title': {
-        lang = `${format.lang === 'en' || format.lang === 'English' ? '(English Dub)' : format.lang}`
-        break
-      }
+    case 'multi': {
+      formatType = 'bv*+mergeall[vcodec=none]'
+      break
+    }
 
-      case 'multi': {
-        lang = 'bv*+mergeall[vcodec=none]'
-        break
-      }
-
-      default: {
-        lang = `bv+ba[language*=${format.lang}]`
-        break
-      }
+    default: {
+      formatType = 'bv+ba'
+      break
     }
   }
+
+  let filterType: string | string[] = []
+  switch (filter) {
+    case 'lang': {
+      filterType = '--match-filters'
+      break
+    }
+
+    case 'title': {
+      filterType = '--match-title'
+    }
+  }
+
+  let langType: string | string[] = []
+  if (filter === 'lang' && format === 'quality') {
+    langType = `language*=${language}`
+  } else if ( filter === 'title' && format === 'quality') {
+    langType = language === 'en' ? '(english dub)' : '(japanese dub)'
+  }
+
 
   const ytdlProcess = spawn(
     'yt-dlp',
     [
+      ...(username ? ['--username', username] : []),
+      ...(password ? ['--password', password] : []),
       ...cookies,
       formattedUrl,
       '--referer',
       formattedUrl,
-      ...formatType,
-      ...lang,
+      '-f',
+      formatType,
+      ...filterType,
+      ...langType,
       ...subtitles,
       ...(subs ? ['--embed-subs'] : []),
       '-o',
