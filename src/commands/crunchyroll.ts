@@ -8,6 +8,7 @@ import color from 'picocolors'
 import { checkCookie, checkDirExists, checkFileExists } from '../utils/check'
 import createDir from '../utils/createDir'
 import deleteOldCookies from '../utils/deleteCookie'
+import { ytdl } from '../utils/fetcher'
 import outro from '../utils/outro'
 
 export default class Crunchyroll extends Command {
@@ -63,6 +64,16 @@ export default class Crunchyroll extends Command {
       description: 'Skip download questions and use default settings',
       required: false,
     }),
+    username: Flags.string({
+      char: 'u',
+      description: 'Your Crunchyroll username',
+      required: false,
+    }),
+    password: Flags.string({
+      char: 'p',
+      description: 'Your Crunchyroll password',
+      required: false,
+    }),
   }
 
   public async run(): Promise<void> {
@@ -91,7 +102,7 @@ export default class Crunchyroll extends Command {
           })
         },
         username: () => {
-          if (flags.default) return
+          if (flags.default || flags.username) return
           return p.text({
             message: 'What is your Crunchyroll username?',
             validate: (value) => {
@@ -100,7 +111,7 @@ export default class Crunchyroll extends Command {
           })
         },
         password: () => {
-          if (flags.default) return
+          if (flags.default || flags.password) return
           return p.password({
             message: 'What is your Crunchyroll password?',
             validate: (value) => {
@@ -234,6 +245,22 @@ export default class Crunchyroll extends Command {
         format: 'quality',
         filter: 'lang',
         language: 'en',
+        ...(!flags.username && {
+          username: await p.text({
+            message: 'What is your Crunchyroll username?',
+            validate: (value) => {
+              if (!value) return 'Please enter a username'
+            }
+          }),
+        }),
+        ...(!flags.password && {
+          password: await p.password({
+            message: 'What is your Crunchyroll password?',
+            validate: (value) => {
+              if (!value) return 'Please enter a password'
+            }
+          }),
+        })
       }
     }
 
@@ -368,8 +395,8 @@ export default class Crunchyroll extends Command {
 
     const ytdlParams = {
       location: dwnDir,
-      username: opts.username,
-      password: opts.password,
+      username: flags.username ?? (defaults?.username || opts.username),
+      password: flags.password ?? (defaults?.password || opts.password),
       cookieFile: {
         exists: defaults?.cookie || opts.cookie === 'true' && cookiePath,
         ...(cookiePath && { path: cookiePath }),
@@ -388,6 +415,12 @@ export default class Crunchyroll extends Command {
     // Start the spinner
     if (flags.quiet && !flags.verbose) sp.start(`Downloading ${dwnName}`)
 
+    ytdl(ytdlParams).then(() => {
+
+    }).catch((err) => {
+      if (process.env.NODE_ENV === 'development') console.error(err)
+      this.error(err.message, {exit: 1})
+    })
 
 
   }
