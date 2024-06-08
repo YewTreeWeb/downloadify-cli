@@ -71,6 +71,7 @@
     }
   },
   "scripts": {
+    "watch": "shx rm -rf dist && tsc -b --watch",
     "build": "shx rm -rf dist && tsc -b && npm link",
     "lint": "eslint . --ext .ts --config .eslintrc",
     "lint-staged": "lint-staged",

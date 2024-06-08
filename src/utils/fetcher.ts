@@ -1,10 +1,14 @@
 import { exit } from '@oclif/core/lib/errors'
-import { ChildProcessWithoutNullStreams, SpawnOptions, spawn } from 'node:child_process'
+import {
+  ChildProcessWithoutNullStreams,
+  SpawnOptions,
+  spawn,
+} from 'node:child_process'
 import { sync } from 'which'
 
 type YtdlOptions = {
-  cookieFile: {
-    exists: boolean
+  cookieFile?: {
+    exists?: boolean
     path?: string
   }
   episode?: null | number | string
@@ -45,7 +49,7 @@ const findFFmpegLocation = () => {
   const defaultPath = '/opt/homebrew/bin/ffmpeg'
   let path = ''
   try {
-    const found = sync('ffmpeg', {nothrow: true})
+    const found = sync('ffmpeg', { nothrow: true })
     path = found && found !== defaultPath ? found : defaultPath
   } catch (error) {
     if (process.env.NODE_ENV === 'development') console.error(error)
@@ -56,7 +60,7 @@ const findFFmpegLocation = () => {
 }
 
 export const ytdl = async ({
-  cookieFile,
+  cookieFile = { exists: false },
   episode,
   filter = 'lang',
   format = 'quality',
@@ -78,8 +82,15 @@ export const ytdl = async ({
   const ffmpegPath = findFFmpegLocation()
   // Format the URL, season and episode into one string
   const formattedUrl = `${url}${season || ''}${episode || ''}`
-  const subtitles = subs && subs === 'all' ? ['--sub-langs', 'all'] : subs ? ['--sub-langs', 'en.*'] : []
-  const cookies = cookieFile?.exists ? ['--cookies', String(cookieFile.path)] : ['--cookies-from-browser', 'chrome']
+  const subtitles =
+    subs && subs === 'all'
+      ? ['--sub-langs', 'all']
+      : subs
+        ? ['--sub-langs', 'en.*']
+        : []
+  const cookies = cookieFile?.exists
+    ? ['--cookies', String(cookieFile.path)]
+    : ['--cookies-from-browser', 'chrome']
 
   // Set format
   let formatType = ''
@@ -115,10 +126,9 @@ export const ytdl = async ({
   let langType: string | string[] = []
   if (filter === 'lang' && format === 'quality') {
     langType = `language*=${language}`
-  } else if ( filter === 'title' && format === 'quality') {
+  } else if (filter === 'title' && format === 'quality') {
     langType = language === 'en' ? '(english dub)' : '(japanese dub)'
   }
-
 
   const ytdlProcess = spawn(
     'yt-dlp',
@@ -137,7 +147,9 @@ export const ytdl = async ({
       ...(subs ? ['--embed-subs'] : []),
       '-o',
       `${location}/%(series)s/Season%(season_number)s/%(series)s-S%(season_number)sE%(episode_number)s-%(episode)s.%(ext)s`,
-      ...(typeof format === 'object' && format.type === 'multi' ? '--audio-multistreams' : []),
+      ...(typeof format === 'object' && format === 'multi'
+        ? '--audio-multistreams'
+        : []),
       '--ffmpeg-location',
       ffmpegPath,
       // Add additional arguments
@@ -146,13 +158,15 @@ export const ytdl = async ({
       // Use the dynamically retrieved user agent
       userAgent,
       // Hard code the subtitles into the video
-      ...(hardSubs ? ['--extractor-args', 'crunchyrollbeta:hardsub=en-US'] : []),
+      ...(hardSubs
+        ? ['--extractor-args', 'crunchyrollbeta:hardsub=en-US']
+        : []),
       // Enable quiet mode
       ...(quiet && !verbose ? ['--quiet', '--no-warnings', '--progress'] : []),
       // Enable verbose output
       ...(verbose ? ['--verbose'] : []),
     ],
-    {stdio: 'inherit'},
+    { stdio: 'inherit' },
   )
 
   if (process.env.NODE_ENV === 'development') console.info(ytdlProcess)
@@ -185,7 +199,7 @@ export const dwnManga = async ({
   quiet = false,
   rest,
   url,
-}: {quiet?: boolean} & DwnMangaProps) => {
+}: { quiet?: boolean } & DwnMangaProps) => {
   const args = [
     '--language',
     language,
@@ -238,7 +252,13 @@ export const dwnManga = async ({
   })
 }
 
-export const iplayerDl = async ({location, pid, rest, season, subs = false}: IPlayerProps) => {
+export const iplayerDl = async ({
+  location,
+  pid,
+  rest,
+  season,
+  subs = false,
+}: IPlayerProps) => {
   const iPlayerProcess = spawn(
     'get_iplayer',
     [
@@ -257,7 +277,7 @@ export const iplayerDl = async ({location, pid, rest, season, subs = false}: IPl
       // Add additional arguments
       ...(rest ? [rest] : []),
     ],
-    {stdio: rest?.includes('quiet') ? ['pipe', 'pipe', 'pipe'] : 'inherit'},
+    { stdio: rest?.includes('quiet') ? ['pipe', 'pipe', 'pipe'] : 'inherit' },
   )
 
   if (process.env.NODE_ENV === 'development') console.info(iPlayerProcess)

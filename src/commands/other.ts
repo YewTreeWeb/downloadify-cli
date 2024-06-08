@@ -8,7 +8,7 @@ import color from 'picocolors'
 import { checkDirExists, checkFileExists } from '../utils/check'
 import createDir from '../utils/createDir'
 import deleteOldCookies from '../utils/deleteCookie'
-import { LanguageProps, ytdl } from '../utils/fetcher'
+import { ytdl } from '../utils/fetcher'
 import outro from '../utils/outro'
 
 export default class Other extends Command {
@@ -146,7 +146,7 @@ export default class Other extends Command {
             `Movies/${String(results.dir)}/cookies`,
           )
           // Remove outdated cookies
-          deleteOldCookies(cookieDir, String(results.dir))
+          deleteOldCookies(cookieDir)
 
           // Display warning message
           if (results.cookie === 'false') {
@@ -212,11 +212,11 @@ export default class Other extends Command {
           if (flags.all_subs || flags.default) return
           return p.select({
             message: 'Would you like to download subtitles?',
-            initialValue: 'true',
+            initialValue: true,
             maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              { value: true, label: 'Yes' },
+              { value: false, label: 'No' },
             ],
           })
         },
@@ -234,38 +234,20 @@ export default class Other extends Command {
             ],
           })
         },
-        lang: ({ results }) => {
-          if (flags.default || results.enforceEng !== 'false') return
-          return p.select({
-            message: 'Would you like download in another language?',
-            initialValue: 'false',
-            maxItems: 2,
-            options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
-            ],
-          })
-        },
-        otherLang: ({ results }) => {
-          if (flags.default || results.lang === 'false') return
-          return p.text({
-            message: 'What language would you like to download in? (eg. jp)',
-          })
-        },
         more: () => {
           if (flags.default) return
           return p.select({
             message: 'Would you like to add any other params to the download?',
-            initialValue: 'false',
+            initialValue: false,
             maxItems: 2,
             options: [
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
+              { value: true, label: 'Yes' },
+              { value: false, label: 'No' },
             ],
           })
         },
         custom: ({ results }) => {
-          if (results.more === 'false' || flags.default) return
+          if (!results.more || flags.default) return
           return p.text({
             message: 'What other params would you like to add?',
           })
@@ -286,26 +268,16 @@ export default class Other extends Command {
       },
     )
 
-    let defaults = null
-    if (flags.default) {
-      defaults = {
-        dir: 'Videos',
-        cookie: 'skip',
-        subtitles: false,
-        enforceEng: false,
-        more: false,
-      }
-    }
-
     // If confirm is false
     if (!opts?.confirm) {
       outro('Download aborted! Thank you for using Downloadify.', 'abort')
       this.exit(1)
     }
 
+    // Ask where to download video
+    const dirName = opts.dir
     // Set download directory
-    const dirName = defaults?.dir || opts.dir
-    const dwnDir = path.join(os.homedir(), `Movies/${dirName}`)
+    const dwnDir = path.join(os.homedir(), `Movies/${String(dirName)}`)
 
     //* Add arguments to the rest param */
     // Loop through the flags and any not in the ignore to the res variable
@@ -335,68 +307,85 @@ export default class Other extends Command {
       rest = emptyRest ? `${rest} ${flags}` : flags
     }
 
-    const format: LanguageProps = {
-      type: opts.enforceEng === 'false' ? 'language' : String(opts.enforceEng),
-      custom: String(opts.otherLang),
-      forceEn: opts.enforceEng !== 'false',
-    }
-
     // If no cookie file end the cli
     // Else run yt-dlp
-    if (!opts.hasCookie && opts.cookie === 'true' && !flags.default) {
+    if (!opts.hasCookie && opts.cookie === 'true') {
       outro(
-        `No cookie file found. Unable to download, please add a valid and up-to-date cookies file to the ${dirName} directory.`,
+        `Unable to download. Please add a valid and up-to-date cookies file to the ${String(
+          dirName,
+        )} directory.`,
         'error',
       )
       this.exit(1)
-    }
-
-    const ytdlOpts = {
-      location: dwnDir,
-      episode: null,
-      season: null,
-      ...(opts.cookie !== 'skip' &&
-        !flags.default && {
-          cookieFile: {
-            path: path.join(
-              os.homedir(),
-              `Movies/${String(dirName)}/cookies/cookies-${formattedDate}.txt`,
-            ),
-            exists: opts.cookie === 'true',
-          },
+    } else {
+      const ytdlOpts = {
+        location: dwnDir,
+        episode: null,
+        season: null,
+        ...(opts.cookie !== 'skip' &&
+          !flags.default && {
+            cookieFile: {
+              path: path.join(
+                os.homedir(),
+                `Movies/${String(
+                  dirName,
+                )}/cookies/cookies-${formattedDate}.txt`,
+              ),
+              exists: opts.cookie === 'true',
+            },
+          }),
+        url: args.url,
+        subs: flags.all_subs ? 'all' : opts.subtitles,
+        format: '[bv+ba]',
+        ...(rest && {
+          rest,
         }),
-      url: args.url,
-      subs: defaults?.subtitles || flags.all_subs ? 'all' : opts.subtitles,
-      ...(!defaults?.enforceEng && {
-        format,
-      }),
-      ...(rest && {
-        rest,
-      }),
-    }
-    if (flags.quiet) {
-      sp.start('Downloading')
-    }
+      }
+      if (flags.quiet) {
+        sp.start('Downloading')
+      }
 
-    await ytdl(ytdlOpts)
-      .then(() => {
-        if (flags.quiet) sp.stop()
+      await ytdl(ytdlOpts)
+        .then(() => {
+          if (flags.quiet && !flags.verbose) {
+            sp.stop()
+          }
 
+          outro(
+            `All downloads completed! Thank you for using Downloadify. Completed downloading - ${color.underline(
+              color.black(dwnName),
+            )}`,
+            'success',
+          )
+          this.exit(0)
+        })
+        .catch((error) => {
+          if (flags.quiet && !flags.verbose) {
+            sp.stop()
+          }
+
+          if (process.env.NODE_ENV === 'development') console.error(error)
+          outro(
+            `An error occurred. Unable to download due to the following error: ${color.underline(
+              color.black(error.message),
+            )}`,
+            'error',
+          )
+          this.exit(1)
+        })
+
+      if (flags.quiet) {
+        sp.stop()
+      }
+
+      if (hasFailed) {
+        outro('An error occurred. Unable to download.', 'error')
+      } else {
         outro(
           'All downloads completed! Thank you for using Downloadify.',
           'success',
         )
-      })
-      .catch((error) => {
-        if (flags.quiet) sp.stop()
-
-        if (process.env.NODE_ENV === 'development') console.error(error)
-        outro(
-          `An error occurred. Unable to download due to the following error: ${color.underline(
-            color.black(error.message),
-          )}`,
-          'error',
-        )
-      })
+      }
+    }
   }
 }

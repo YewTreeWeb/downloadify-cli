@@ -107,7 +107,7 @@ export default class Crunchyroll extends Command {
             message: 'What is your Crunchyroll username?',
             validate: (value) => {
               if (!value) return 'Please enter a username'
-            }
+            },
           })
         },
         password: () => {
@@ -116,7 +116,7 @@ export default class Crunchyroll extends Command {
             message: 'What is your Crunchyroll password?',
             validate: (value) => {
               if (!value) return 'Please enter a password'
-            }
+            },
           })
         },
         cookie: () => {
@@ -144,8 +144,9 @@ export default class Crunchyroll extends Command {
             ],
           })
         },
-        filter: async ({results}) => {
-          if (flags.default || flags.filter || results.format === 'multi') return
+        filter: async ({ results }) => {
+          if (flags.default || flags.filter || results.format === 'multi')
+            return
           return p.select({
             message: 'What format would you like to download the video in?',
             initialValue: 'lang',
@@ -158,7 +159,13 @@ export default class Crunchyroll extends Command {
           })
         },
         language: async ({ results }) => {
-          if (flags.default || flags.language || results.format === 'multi' || results.filter === 'skip' && results.format !== 'id') return
+          if (
+            flags.default ||
+            flags.language ||
+            results.format === 'multi' ||
+            (results.filter === 'skip' && results.format !== 'id')
+          )
+            return
           return p.select({
             message: 'What format would you like to download the video in?',
             initialValue: 'en',
@@ -250,7 +257,7 @@ export default class Crunchyroll extends Command {
             message: 'What is your Crunchyroll username?',
             validate: (value) => {
               if (!value) return 'Please enter a username'
-            }
+            },
           }),
         }),
         ...(!flags.password && {
@@ -258,9 +265,9 @@ export default class Crunchyroll extends Command {
             message: 'What is your Crunchyroll password?',
             validate: (value) => {
               if (!value) return 'Please enter a password'
-            }
+            },
           }),
-        })
+        }),
       }
     }
 
@@ -280,7 +287,10 @@ export default class Crunchyroll extends Command {
     const dirExists = await checkDirExists(dwnDir)
     if (!dirExists) {
       const { success, error } = await createDir(dirName)
-      if (error) this.error(`Failed to create directory ${dirName}: ${error}`, { exit: 1 })
+      if (error)
+        this.error(`Failed to create directory ${dirName}: ${error}`, {
+          exit: 1,
+        })
       if (success) p.log.step(`Created directory ${dirName}`)
     }
 
@@ -322,7 +332,7 @@ export default class Crunchyroll extends Command {
     // Check if the cookie file exists
     // If file does not exist, exit the program
     const baseUrlNoLastSlash = baseUrl.slice(0, -1)
-    let cookiePath = null
+    let cookiePath: boolean | string = false
 
     const hasCookie = await checkCookie(dirName, baseUrlNoLastSlash)
     if (opts.cookie === 'true' && !flags.default) {
@@ -334,7 +344,7 @@ export default class Crunchyroll extends Command {
           { exit: 1 },
         )
       } else if (hasCookie.success) {
-        cookiePath = hasCookie.cookiePath
+        cookiePath = String(hasCookie.cookiePath)
         p.log.step(
           `${color.bgGreen(
             color.black(
@@ -399,7 +409,12 @@ export default class Crunchyroll extends Command {
       username: flags.username ?? (defaults?.username || opts.username),
       password: flags.password ?? (defaults?.password || opts.password),
       cookieFile: {
-        exists: defaults?.cookie || cookiePath,
+        exists:
+          typeof defaults?.cookie === 'boolean'
+            ? defaults.cookie
+            : opts.cookie === 'true'
+              ? !!cookiePath
+              : false,
         ...(cookiePath && { path: cookiePath }),
       },
       filter: defaults?.filter || (flags.filter ?? opts.filter),
@@ -408,15 +423,15 @@ export default class Crunchyroll extends Command {
       subs: defaults?.subtitles || (flags.all_subs ? 'all' : opts.subtitles),
       hardSubs: defaults?.hardSubs || opts.hardSubs,
       url,
-      ...(rest && {rest}),
-      ...(flags.quiet && {quiet: flags.quiet}),
-      ...(flags.verbose && {verbose: flags.verbose}),
+      ...(rest && { rest }),
+      ...(flags.quiet && { quiet: flags.quiet }),
+      ...(flags.verbose && { verbose: flags.verbose }),
     }
 
     // Start the spinner
     if (flags.quiet && !flags.verbose) sp.start(`Downloading ${dwnName}`)
 
-      await ytdl(ytdlParams)
+    await ytdl(ytdlParams)
       .then(() => {
         if (flags.quiet && !flags.verbose) {
           sp.stop()
@@ -428,6 +443,7 @@ export default class Crunchyroll extends Command {
           )}`,
           'success',
         )
+        this.exit(0)
       })
       .catch((error) => {
         if (flags.quiet && !flags.verbose) {
@@ -441,7 +457,7 @@ export default class Crunchyroll extends Command {
           )}`,
           'error',
         )
+        this.exit(1)
       })
-
   }
 }
