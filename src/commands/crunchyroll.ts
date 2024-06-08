@@ -323,6 +323,7 @@ export default class Crunchyroll extends Command {
     // If file does not exist, exit the program
     const baseUrlNoLastSlash = baseUrl.slice(0, -1)
     let cookiePath = null
+
     const hasCookie = await checkCookie(dirName, baseUrlNoLastSlash)
     if (opts.cookie === 'true' && !flags.default) {
       deleteOldCookies(dwnDir)
@@ -398,7 +399,7 @@ export default class Crunchyroll extends Command {
       username: flags.username ?? (defaults?.username || opts.username),
       password: flags.password ?? (defaults?.password || opts.password),
       cookieFile: {
-        exists: defaults?.cookie || opts.cookie === 'true' && cookiePath,
+        exists: defaults?.cookie || cookiePath,
         ...(cookiePath && { path: cookiePath }),
       },
       filter: defaults?.filter || (flags.filter ?? opts.filter),
@@ -415,13 +416,32 @@ export default class Crunchyroll extends Command {
     // Start the spinner
     if (flags.quiet && !flags.verbose) sp.start(`Downloading ${dwnName}`)
 
-    ytdl(ytdlParams).then(() => {
+      await ytdl(ytdlParams)
+      .then(() => {
+        if (flags.quiet && !flags.verbose) {
+          sp.stop()
+        }
 
-    }).catch((err) => {
-      if (process.env.NODE_ENV === 'development') console.error(err)
-      this.error(err.message, {exit: 1})
-    })
+        outro(
+          `All downloads completed! Thank you for using Downloadify. Completed downloading - ${color.underline(
+            color.black(dwnName),
+          )}`,
+          'success',
+        )
+      })
+      .catch((error) => {
+        if (flags.quiet && !flags.verbose) {
+          sp.stop()
+        }
 
+        if (process.env.NODE_ENV === 'development') console.error(error)
+        outro(
+          `An error occurred. Unable to download due to the following error: ${color.underline(
+            color.black(error.message),
+          )}`,
+          'error',
+        )
+      })
 
   }
 }
